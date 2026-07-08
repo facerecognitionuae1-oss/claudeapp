@@ -3,7 +3,7 @@ const { v4: uuid } = require('uuid');
 const store = require('../storage');
 const { requireAuth, requireWorkspace } = require('../middleware/auth');
 const ai = require('../services/ai');
-const { baseContext, chatSystem } = require('../services/prompts');
+const { baseContext, chatSystem, detectLang } = require('../services/prompts');
 
 const router = express.Router({ mergeParams: true });
 router.use(requireAuth);
@@ -14,9 +14,8 @@ router.post('/', requireWorkspace, async (req, res) => {
   const { question, provider, model } = req.body || {};
   if (!question || !question.trim()) return res.status(400).json({ error: 'Question required' });
   const mode = req.body?.mode || ws.mode;
-  // Arabic question → Arabic answer, regardless of workspace language.
-  const isArabic = /[؀-ۿ]/.test(question);
-  const language = req.body?.language || (isArabic ? 'ar' : ws.language);
+  // The question's own language always wins: Arabic question → Arabic answer, anywhere.
+  const language = req.body?.language || detectLang(question) || ws.language;
 
   const files = await store.listFiles(ws.id);
   const history = (await store.listMessages(ws.id)).slice(-10);
@@ -27,13 +26,13 @@ router.post('/', requireWorkspace, async (req, res) => {
     provider: '', model: '', mode, created_at: new Date().toISOString(),
   });
 
-  const system = chatSystem(mode, language);
+  const system = chatSystem(mode, language, files.length > 0);
   const user = `${baseContext(ws, files)}
 
 RECENT CONVERSATION:
 ${historyText || '(none)'}
 
-EMPLOYEE QUESTION:
+EMPLOYEE QUESTION (answer in this question's language):
 ${question.trim()}`;
 
   const out = await ai.chat({ provider, model, system, user });

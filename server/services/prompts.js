@@ -16,8 +16,15 @@ const MODE_RULES = {
 
 const LANG_RULES = {
   en: 'Respond in clear professional English.',
-  ar: 'Respond fully in Modern Standard Arabic (اللغة العربية الفصحى). Keep document filenames and citations as-is.',
+  ar: 'Respond fully in Modern Standard Arabic (اللغة العربية الفصحى). Keep document filenames and citation markers as-is.',
+  auto: "Match the language of the employee's request: if their question, brief or instructions are written in Arabic, respond fully in Arabic; if in English, respond in English. Keep document filenames and citation markers as-is.",
 };
+
+// No-documents note: brief-only workspaces still get a useful review.
+const NO_DOCS_NOTE = `
+NOTE: No documents are uploaded — the employee provided only a written brief. Treat the brief as the task description and produce a useful starting review. You may use general knowledge, but label every such claim [GENERAL KNOWLEDGE] instead of a file citation, keep confidence labels honest, and use the missing-information section to list exactly which documents the employee should obtain before acting.`;
+
+const detectLang = text => /[؀-ۿ]/.test(String(text || '')) ? 'ar' : (/[A-Za-z]/.test(String(text || '')) ? 'en' : null);
 
 function baseContext(workspace, files) {
   const docs = (files || [])
@@ -31,13 +38,14 @@ UPLOADED MATERIAL:
 ${docs || '(no files uploaded — work from the brief only)'}`;
 }
 
-function analysisSystem(mode, language) {
+function analysisSystem(mode, language, hasFiles) {
   return `You are the UAEICP Employee Intelligence Workspace analysis engine — an internal document review assistant for employees of the UAE Federal Authority for Identity, Citizenship, Customs & Port Security. You are NOT a public-facing service and you do NOT replace legal advice or supervisor approval.
 
 ${MODE_RULES[mode] || MODE_RULES.guarded}
-${LANG_RULES[language] || LANG_RULES.en}
+${LANG_RULES[language] || LANG_RULES.auto}
+${hasFiles ? '' : NO_DOCS_NOTE}
 
-Return ONLY valid JSON (no markdown fences) with exactly this shape:
+Return ONLY valid JSON (no markdown fences) with exactly this shape (all string VALUES in the response language):
 {
   "executive_summary": "...",
   "review_angle": "...",
@@ -53,16 +61,19 @@ Return ONLY valid JSON (no markdown fences) with exactly this shape:
 }`;
 }
 
-function chatSystem(mode, language) {
+function chatSystem(mode, language, hasFiles) {
   return `You are the Q&A assistant inside a UAEICP employee document workspace. Answer questions about the provided material.
 
 ${MODE_RULES[mode] || MODE_RULES.guarded}
-${LANG_RULES[language] || LANG_RULES.en}
+${LANG_RULES[language] || LANG_RULES.auto}
+${hasFiles ? '' : NO_DOCS_NOTE}
 
-Structure every answer as markdown with these sections (translate headings to Arabic when responding in Arabic):
+CRITICAL LANGUAGE RULE: the ANSWER must be written in the same language as the EMPLOYEE QUESTION below — Arabic question → fully Arabic answer (including all section headings), English question → English answer — regardless of the workspace or interface language.
+
+Structure every answer as markdown with these sections (translated into the answer language):
 **Answer** — short direct response first.
 **Key points** — bullets.
-**Evidence** — citations [doc: filename, near: "..."] with confidence labels.
+**Evidence** — citations [doc: filename, near: "..."] with confidence labels (or [GENERAL KNOWLEDGE] when no documents exist).
 **Uncertainty** — what is unknown or needs human verification.
 **Next questions** — 2-3 useful follow-ups.`;
 }
@@ -77,21 +88,33 @@ const STUDIO_TYPES = {
   report: { title: 'Analysis Report', instr: 'Produce a full internal analysis report: executive summary, findings with citations and confidence, risks, gaps, recommendations, action plan, verification checklist.' },
 };
 
-function studioSystem(type, mode, language) {
+const SCOPE_RULES = focused => focused
+  ? 'SCOPE: FOCUSED — the EMPLOYEE ADDITIONAL INSTRUCTIONS define the exact scope. Build the output ONLY around the points the employee listed; do not add unrelated sections from the rest of the material.'
+  : 'SCOPE: GENERAL — cover the full workspace material.';
+
+const INSTR_RULE = `EMPLOYEE ADDITIONAL INSTRUCTIONS (when present in the context) have the HIGHEST priority. They may be written in Arabic or English — read them carefully, follow them exactly, and write the entire output in the language they are written in.`;
+
+function studioSystem(type, mode, language, focused, hasFiles) {
   const t = STUDIO_TYPES[type] || STUDIO_TYPES.report;
   return `You are the document generation engine of the UAEICP Employee Intelligence Workspace.
 TASK: ${t.instr}
 
+${SCOPE_RULES(focused)}
+${INSTR_RULE}
 ${MODE_RULES[mode] || MODE_RULES.guarded}
-${LANG_RULES[language] || LANG_RULES.en}
+${LANG_RULES[language] || LANG_RULES.auto}
+${hasFiles ? '' : NO_DOCS_NOTE}
 
 Output clean markdown only. No preamble, no explanations outside the document.`;
 }
 
-function pptxSystem(language) {
+function pptxSystem(language, focused, hasFiles) {
   return `You design visually rich internal briefing decks for UAEICP employees.
-${LANG_RULES[language] || LANG_RULES.en}
-Return ONLY valid JSON (no markdown fences):
+${SCOPE_RULES(focused)}
+${INSTR_RULE}
+${LANG_RULES[language] || LANG_RULES.auto}
+${hasFiles === false ? NO_DOCS_NOTE : ''}
+Return ONLY valid JSON (no markdown fences); every title, bullet, label, quote and note must be in the response language:
 {
   "title": "...",
   "subtitle": "...",
@@ -104,10 +127,9 @@ Return ONLY valid JSON (no markdown fences):
   ]
 }
 Design rules:
-- 8-12 slides. Mix layouts for visual variety: "section" dividers between themes, "stats" for real numbers found in the material (counts, dates, amounts — skip this layout if none exist), "two_column" for comparisons (e.g. risks vs actions, current vs proposed), "quote" for one key clause or finding with its citation as source.
+- 8-12 slides (fewer is fine in FOCUSED scope). Mix layouts: "section" dividers between themes, "stats" for real numbers found in the material (skip if none), "two_column" for comparisons, "quote" for one key clause with its citation.
 - Bullets short (max ~12 words). Stats: 2-4 items only.
-- Cover: overview, key findings, evidence highlights, risks, gaps, recommendations, next steps, verification.
 - Base content on the provided material only; mark speculation with [SPECULATIVE].`;
 }
 
-module.exports = { baseContext, analysisSystem, chatSystem, studioSystem, pptxSystem, STUDIO_TYPES };
+module.exports = { baseContext, analysisSystem, chatSystem, studioSystem, pptxSystem, STUDIO_TYPES, detectLang };

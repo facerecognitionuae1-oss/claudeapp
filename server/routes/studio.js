@@ -5,7 +5,7 @@ const config = require('../config');
 const store = require('../storage');
 const { requireAuth, requireWorkspace } = require('../middleware/auth');
 const ai = require('../services/ai');
-const { baseContext, studioSystem, pptxSystem, STUDIO_TYPES } = require('../services/prompts');
+const { baseContext, studioSystem, pptxSystem, STUDIO_TYPES, detectLang } = require('../services/prompts');
 const { buildDeck } = require('../services/pptx');
 
 const router = express.Router({ mergeParams: true });
@@ -17,18 +17,24 @@ router.get('/types', (req, res) => {
   });
 });
 
-// POST /api/workspaces/:wsId/studio  { type, format?, provider?, model?, instructions? }
+// POST /api/workspaces/:wsId/studio  { type, format?, provider?, model?, instructions?, scope? }
 router.post('/', requireWorkspace, async (req, res) => {
   const ws = req.workspace;
-  const { type, provider, model, instructions } = req.body || {};
+  const { type, provider, model } = req.body || {};
+  const instructions = (req.body?.instructions || '').trim();
+  const focused = req.body?.scope === 'focused' && !!instructions;
   const format = req.body?.format || (type === 'pptx' ? 'pptx' : 'md');
-  const language = req.body?.language || ws.language;
+  // Instructions language wins; otherwise workspace language.
+  const language = req.body?.language || detectLang(instructions) || ws.language;
   const mode = req.body?.mode || ws.mode;
   const files = await store.listFiles(ws.id);
-  const context = baseContext(ws, files) + (instructions ? `\n\nADDITIONAL INSTRUCTIONS FROM EMPLOYEE:\n${instructions}` : '');
+  const hasFiles = files.length > 0;
+  const context = baseContext(ws, files) + (instructions
+    ? `\n\nEMPLOYEE ADDITIONAL INSTRUCTIONS (HIGHEST PRIORITY — follow exactly, respond in their language):\n${instructions}`
+    : '');
 
   if (type === 'pptx') {
-    const out = await ai.chat({ provider, model, system: pptxSystem(language), user: context + '\n\nDesign the briefing deck now.' });
+    const out = await ai.chat({ provider, model, system: pptxSystem(language, focused, hasFiles), user: context + '\n\nDesign the briefing deck now.' });
     const spec = ai.parseJson(out.text);
     if (!spec || !Array.isArray(spec.slides))
       return res.status(502).json({ error: 'Model returned an invalid deck specification', raw: out.text.slice(0, 1500) });
@@ -44,7 +50,7 @@ router.post('/', requireWorkspace, async (req, res) => {
 
   const t = STUDIO_TYPES[type];
   if (!t) return res.status(400).json({ error: 'Unknown output type' });
-  const out = await ai.chat({ provider, model, system: studioSystem(type, mode, language), user: context + '\n\nGenerate the document now.' });
+  const out = await ai.chat({ provider, model, system: studioSystem(type, mode, language, focused, hasFiles), user: context + '\n\nGenerate the document now.' });
 
   let content = out.text;
   if (format === 'json') content = JSON.stringify({ type, title: t.title, generated_at: new Date().toISOString(), body_markdown: out.text }, null, 2);

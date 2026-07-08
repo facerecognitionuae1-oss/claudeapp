@@ -434,6 +434,11 @@
             </select>
             <label class="f">${t('extraInstructions')}</label>
             <textarea class="input" name="instructions" rows="4"></textarea>
+            <label class="f">${t('scopeLabel')}</label>
+            <div class="choices">
+              <label class="choice-card"><input type="radio" name="scope" value="general" checked><span class="cc-title">${t('scopeGeneral')}</span></label>
+              <label class="choice-card"><input type="radio" name="scope" value="focused"><span class="cc-title">${t('scopeFocused')}</span></label>
+            </div>
             <div style="font-size:11.5px;color:var(--muted);margin-top:10px">${t('visualStudioNote')}</div>
             <button class="btn btn-primary" style="width:100%;margin-top:16px" ${busy ? 'disabled' : ''}>
               ${busy ? `<span class="spinner"></span> ${t('generating')}` : `✦ ${t('generate')}`}</button>
@@ -739,7 +744,7 @@
       try {
         const r = await api(`/workspaces/${S.ws.workspace.id}/studio`, {
           method: 'POST',
-          body: JSON.stringify({ type: f.type.value, format: f.format.disabled ? 'pptx' : f.format.value, instructions: f.instructions.value, provider: S.provider }),
+          body: JSON.stringify({ type: f.type.value, format: f.format.disabled ? 'pptx' : f.format.value, instructions: f.instructions.value, scope: f.scope.value, provider: S.provider }),
         });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true);
         else toast('✓');
@@ -769,7 +774,31 @@
       catch { toast(t('error'), true); }
     },
     downloadOutput(id) { A._download(`/api/workspaces/${S.ws.workspace.id}/studio/${id}/download`); },
-    exportReport() { A._download(`/api/workspaces/${S.ws.workspace.id}/export`); },
+    exportReport() {
+      S.modal = `
+      <div class="overlay" onclick="if(event.target===this)A.closeModal()">
+        <form class="modal" onsubmit="A.doExport(event)">
+          <h3>${t('exportReport')}</h3>
+          <div class="sub">${t('exportOptions')}</div>
+          <label class="f"><input type="checkbox" name="analysis" checked> ${t('analysis')}</label>
+          <label class="f"><input type="checkbox" name="chat" checked> ${t('chat')}</label>
+          <label class="f"><input type="checkbox" name="outputs" checked> ${t('outputs')}</label>
+          <label class="f"><input type="checkbox" name="notes" checked> ${t('notes')}</label>
+          <div class="actions">
+            <button type="button" class="btn btn-ghost" onclick="A.closeModal()">${t('cancel')}</button>
+            <button class="btn btn-primary">${t('download')}</button>
+          </div>
+        </form>
+      </div>`;
+      render();
+    },
+    doExport(e) {
+      e.preventDefault();
+      const f = e.target;
+      const inc = ['analysis', 'chat', 'outputs', 'notes'].filter(k => f[k].checked).join(',');
+      S.modal = ''; render();
+      A._download(`/api/workspaces/${S.ws.workspace.id}/export?include=${inc}`);
+    },
     async _download(url) {
       try {
         const res = await fetch(url, { headers: { Authorization: 'Bearer ' + S.token } });

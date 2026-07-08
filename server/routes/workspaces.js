@@ -76,6 +76,8 @@ router.get('/:id/export', requireWorkspace, async (req, res) => {
     store.listFiles(ws.id), store.listAnalyses(ws.id), store.listMessages(ws.id),
     store.listOutputs(ws.id), store.listNotes(ws.id),
   ]);
+  const inc = String(req.query.include || 'analysis,chat,outputs,notes').split(',');
+  const want = k => inc.includes(k);
   const a = analyses[0];
   const result = a ? (typeof a.result === 'string' ? JSON.parse(a.result) : a.result) : null;
   const lines = [
@@ -86,7 +88,7 @@ router.get('/:id/export', requireWorkspace, async (req, res) => {
     ``, `## Files (${files.length})`,
     ...files.map(f => `- ${f.original_name} (${Math.round((f.size_bytes || 0) / 1024)} KB)`),
   ];
-  if (result) {
+  if (result && want('analysis')) {
     lines.push('', '## Latest Analysis', '', `### Executive Summary`, result.executive_summary || '',
       '', `### Review Angle`, result.review_angle || '',
       '', `### Key Findings`,
@@ -103,15 +105,15 @@ router.get('/:id/export', requireWorkspace, async (req, res) => {
       '', `### Follow-up Questions`, ...(result.follow_up_questions || []).map(q => `- ${q}`),
       '', `### Human Verification Required`, ...(result.human_verification || []).map(h => `- ${h}`));
   }
-  if (messages.length) {
+  if (messages.length && want('chat')) {
     lines.push('', `## Q&A History (${messages.length} messages)`);
     for (const m of messages) lines.push('', `**${m.role === 'user' ? 'Q' : 'A'}${m.model ? ` (${m.provider}/${m.model})` : ''}:**`, m.content);
   }
-  if (outputs.length) {
+  if (outputs.length && want('outputs')) {
     lines.push('', `## Generated Outputs`);
     for (const o of outputs) lines.push(`- [${o.type}] ${o.title} (${o.format}, ${o.created_at})`);
   }
-  if (notes.length) {
+  if (notes.length && want('notes')) {
     lines.push('', `## Human Review Notes`);
     for (const n of notes) lines.push(`- ${n.created_at}: ${n.content}`);
   }

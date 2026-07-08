@@ -52,6 +52,10 @@ window.I18N = {
     creating: 'Creating…', uploadingFiles: 'Uploading files…',
     removeFile: 'Remove',
     createAndAnalyze: 'Create & Analyze',
+    scopeLabel: 'Output scope',
+    scopeGeneral: 'General — cover all the material',
+    scopeFocused: 'Focused — only my instructions above',
+    exportOptions: 'Choose what to include in the exported report.',
   },
   ar: {
     appName: 'مساحة عمل الذكاء الاصطناعي لموظفي الهيئة',
@@ -105,5 +109,9 @@ window.I18N = {
     creating: 'جارٍ الإنشاء…', uploadingFiles: 'جارٍ رفع الملفات…',
     removeFile: 'إزالة',
     createAndAnalyze: 'إنشاء وتحليل',
+    scopeLabel: 'نطاق المخرَج',
+    scopeGeneral: 'عام — يغطي كل المواد',
+    scopeFocused: 'محدد — نقاط تعليماتي أعلاه فقط',
+    exportOptions: 'اختر ما تريد تضمينه في التقرير المُصدَّر.',
   },
 };
