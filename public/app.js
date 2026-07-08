@@ -244,6 +244,16 @@
           </label>
         </div>
 
+        <label class="f">${t('provider')}</label>
+        <div class="choices two">
+          ${S.providers.map(p => `
+          <label class="choice-card">
+            <input type="radio" name="provider" value="${p.id}" ${(S.draft.provider || S.provider) === p.id ? 'checked' : ''}>
+            <span class="cc-title">${esc(p.label)}</span>
+            ${p.id === 'demo' ? `<div class="cc-desc">${t('demoNotice')}</div>` : (p.configured ? '' : `<div class="cc-desc">⚠ API key not configured</div>`)}
+          </label>`).join('')}
+        </div>
+
         <div class="help" style="margin-top:16px">✦ ${t('autoAnalyzeNote')}</div>
         <div class="actions">
           <button type="button" class="btn btn-ghost" onclick="A.closeModal()" ${S.busy.create ? 'disabled' : ''}>${t('cancel')}</button>
@@ -548,6 +558,14 @@
     setLang,
     logout,
     setProvider(p) { S.provider = p; localStorage.setItem('provider', p); },
+    // Never default to demo when a real provider is configured
+    _normalizeProvider() {
+      const cur = S.providers.find(p => p.id === S.provider);
+      if (!cur || !cur.configured || S.provider === 'demo') {
+        const first = S.providers.find(p => p.configured && p.id !== 'demo');
+        if (first) { S.provider = first.id; localStorage.setItem('provider', first.id); }
+      }
+    },
     nav(view) { S.view = view; S.modal = ''; if (view === 'dashboard') A.loadDashboard(); else if (view === 'admin') A.loadAdmin(); else render(); },
     closeModal() { S.modal = ''; render(); },
 
@@ -559,6 +577,7 @@
         S.token = data.token; S.user = data.user;
         localStorage.setItem('token', data.token);
         const prov = await api('/providers'); S.providers = prov.providers;
+        A._normalizeProvider();
         A.nav('dashboard');
       } catch (err) {
         const el = $('#login-err'); if (el) el.textContent = err.message;
@@ -588,7 +607,7 @@
     },
     _captureDraft() {
       const f = document.getElementById('new-ws-form'); if (!f) return;
-      S.draft = { title: f.title.value, brief: f.brief.value, language: f.language.value, mode: f.mode.value };
+      S.draft = { title: f.title.value, brief: f.brief.value, language: f.language.value, mode: f.mode.value, provider: f.provider ? f.provider.value : S.provider };
     },
     pickFiles(files) {
       A._captureDraft();
@@ -604,6 +623,7 @@
       e.preventDefault();
       A._captureDraft();
       const d = S.draft;
+      if (d.provider) { S.provider = d.provider; localStorage.setItem('provider', d.provider); }
       // Title optional: default to first file name or a dated placeholder
       let title = (d.title || '').trim();
       if (!title) {
@@ -820,6 +840,7 @@
         const data = await api('/auth/me');
         S.user = data.user;
         const prov = await api('/providers'); S.providers = prov.providers;
+        A._normalizeProvider();
         A.loadDashboard();
         return;
       } catch { /* fall through to login */ }

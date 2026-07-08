@@ -1,29 +1,52 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 170" role="img" aria-label="UAEICP emblem">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 640" role="img" aria-label="Federal Authority for Identity and Citizenship">
+  <!-- Recreation of the ICP falcon emblem. For the exact official artwork,
+       save the official file as logo.png in this folder (it takes priority). -->
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#D4B06A"/>
-      <stop offset="1" stop-color="#B68A35"/>
-    </linearGradient>
+    <style>
+      .k{fill:#1D1D1B}.gld{fill:#B68A35}
+      .ar{font:700 44px 'IBM Plex Sans Arabic','Segoe UI',Tahoma,sans-serif;fill:#1D1D1B}
+      .en1{font:700 30px 'IBM Plex Sans','Segoe UI',Arial,sans-serif;fill:#1D1D1B;letter-spacing:1px}
+      .en2{font:600 22px 'IBM Plex Sans','Segoe UI',Arial,sans-serif;fill:#1D1D1B;letter-spacing:1.5px}
+    </style>
   </defs>
-  <!-- Stylized golden falcon (placeholder emblem — replace with official ICP logo: save it as logo.png in this folder) -->
-  <g fill="url(#g)">
-    <!-- left wing feathers -->
-    <path d="M116 96 C86 92 60 78 44 52 C60 60 74 63 88 62 C70 52 58 38 52 20 C68 34 84 42 100 45 C92 34 88 22 88 8 C100 22 110 34 116 48 Z"/>
-    <!-- right wing feathers (mirror) -->
-    <path d="M124 96 C154 92 180 78 196 52 C180 60 166 63 152 62 C170 52 182 38 188 20 C172 34 156 42 140 45 C148 34 152 22 152 8 C140 22 130 34 124 48 Z"/>
-    <!-- body -->
-    <path d="M120 42 C130 56 134 74 130 96 C128 110 124 120 120 126 C116 120 112 110 110 96 C106 74 110 56 120 42 Z"/>
-    <!-- head -->
-    <circle cx="120" cy="38" r="7"/>
-    <path d="M120 31 C124 31 127 33 128 36 L133 38 L127 41 C124 43 121 43 118 41 Z"/>
-    <!-- tail -->
-    <path d="M120 128 L112 148 L120 143 L128 148 Z"/>
+
+  <!-- gold star arc -->
+  <g class="gld">
+    <text x="196" y="58" font-size="26">★</text>
+    <text x="216" y="92" font-size="24">★</text>
+    <text x="233" y="126" font-size="22">★</text>
+    <text x="247" y="159" font-size="20">★</text>
+    <text x="258" y="191" font-size="18">★</text>
+    <text x="266" y="221" font-size="16">★</text>
+    <text x="272" y="249" font-size="14">★</text>
   </g>
-  <!-- flag colors base line -->
-  <g>
-    <rect x="70" y="156" width="10" height="6" fill="#C3002F"/>
-    <rect x="80" y="156" width="30" height="6" fill="#007A3D"/>
-    <rect x="110" y="156" width="30" height="6" fill="#FFFFFF" stroke="#E5E1D8" stroke-width="0.5"/>
-    <rect x="140" y="156" width="30" height="6" fill="#232323"/>
+
+  <!-- black swooping wing + falcon head -->
+  <g class="k">
+    <path d="M337,318 C322,235 288,140 232,68 C214,45 193,26 170,14 C196,20 219,34 238,54 C232,36 222,20 208,8 C234,20 255,42 268,70 C270,52 267,35 259,20 C280,42 292,72 296,105 C306,160 322,240 337,318 Z"/>
+    <path d="M337,318 C348,268 366,230 398,207 C424,189 456,183 480,192 C497,199 507,212 508,227 C509,238 503,243 492,242 C478,241 468,246 461,256 C478,258 490,266 494,279 C477,289 455,288 436,279 C405,306 375,330 337,318 Z"/>
+    <circle cx="466" cy="219" r="7" fill="#FFFFFF"/>
+    <circle cx="468" cy="221" r="4"/>
+    <path d="M508,227 C520,231 528,238 531,247 C521,252 510,251 501,244 Z"/>
   </g>
+
+  <!-- halftone dot fans (red / green / grey) -->
+  <g fill="#C3002F">
+    <circle cx="300" cy="212" r="11"/><circle cx="277" cy="220" r="10"/><circle cx="255" cy="228" r="9"/><circle cx="234" cy="237" r="8"/><circle cx="214" cy="246" r="7"/><circle cx="195" cy="255" r="6"/><circle cx="177" cy="264" r="5"/><circle cx="160" cy="273" r="4"/>
+    <circle cx="303" cy="236" r="9"/><circle cx="282" cy="243" r="8"/><circle cx="262" cy="251" r="7"/><circle cx="243" cy="259" r="6"/><circle cx="225" cy="267" r="5"/><circle cx="208" cy="275" r="4"/>
+  </g>
+  <g fill="#007A3D">
+    <circle cx="306" cy="262" r="11"/><circle cx="284" cy="270" r="10"/><circle cx="263" cy="279" r="9"/><circle cx="243" cy="288" r="8"/><circle cx="224" cy="297" r="7"/><circle cx="206" cy="306" r="6"/><circle cx="189" cy="315" r="5"/><circle cx="173" cy="324" r="4"/>
+    <circle cx="309" cy="287" r="9"/><circle cx="288" cy="295" r="8"/><circle cx="268" cy="303" r="7"/><circle cx="249" cy="312" r="6"/><circle cx="231" cy="321" r="5"/><circle cx="214" cy="330" r="4"/>
+  </g>
+  <g fill="#8A8A8A">
+    <circle cx="312" cy="313" r="10"/><circle cx="291" cy="322" r="9"/><circle cx="271" cy="331" r="8"/><circle cx="252" cy="340" r="7"/><circle cx="234" cy="349" r="6"/><circle cx="217" cy="358" r="5"/><circle cx="201" cy="367" r="4"/>
+    <circle cx="314" cy="337" r="8"/><circle cx="294" cy="346" r="7"/><circle cx="275" cy="355" r="6"/><circle cx="257" cy="364" r="5"/><circle cx="240" cy="373" r="4"/>
+  </g>
+
+  <!-- wordmark -->
+  <text x="300" y="452" text-anchor="middle" class="ar">الهيئة الاتحاديـة</text>
+  <text x="300" y="506" text-anchor="middle" class="ar">للهويـة والجنسيـة</text>
+  <text x="300" y="556" text-anchor="middle" class="en1">FEDERAL AUTHORITY</text>
+  <text x="300" y="586" text-anchor="middle" class="en2">FOR IDENTITY &amp; CITIZENSHIP</text>
 </svg>
