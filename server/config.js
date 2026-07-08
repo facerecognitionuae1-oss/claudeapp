@@ -2,6 +2,14 @@ require('dotenv').config();
 const path = require('path');
 
 const root = path.join(__dirname, '..');
+const persistentDir = process.env.PERSISTENT_DIR
+  ? path.resolve(process.env.PERSISTENT_DIR)
+  : path.join(root, 'data');
+
+function resolveRuntimePath(value, fallback) {
+  if (!value) return fallback;
+  return path.isAbsolute(value) ? value : path.resolve(root, value);
+}
 
 module.exports = {
   port: process.env.PORT || 3000,
@@ -10,9 +18,10 @@ module.exports = {
   adminPassword: process.env.ADMIN_PASSWORD || 'Admin@1234',
   databaseUrl: process.env.DATABASE_URL || '',
   pgSsl: process.env.PGSSL === 'true',
-  uploadDir: path.resolve(root, process.env.UPLOAD_DIR || './data/uploads'),
-  generatedDir: path.resolve(root, process.env.GENERATED_DIR || './generated'),
-  dataFile: path.join(root, 'data', 'db.json'),
+  persistentDir,
+  uploadDir: resolveRuntimePath(process.env.UPLOAD_DIR, path.join(persistentDir, 'uploads')),
+  generatedDir: resolveRuntimePath(process.env.GENERATED_DIR, path.join(persistentDir, 'generated')),
+  dataFile: resolveRuntimePath(process.env.DATA_FILE, path.join(persistentDir, 'db.json')),
   maxUploadMb: parseInt(process.env.MAX_UPLOAD_MB || '25', 10),
   providers: {
     openai: {

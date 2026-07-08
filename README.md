@@ -37,9 +37,11 @@ Both modes always include human-verification notes.
 
 ## Storage
 
-- **Default:** local JSON persistence at `data/db.json` (no setup).
-- **PostgreSQL:** set `DATABASE_URL` — tables are auto-created from `server/db/schema.sql` on boot. Point any DB GUI (pgAdmin, TablePlus, DBeaver) at the same URL to inspect tables: `users`, `workspaces`, `files`, `analyses`, `messages`, `outputs`, `notes`.
-- Uploaded files → `data/uploads/`; generated PPTX files → `generated/`.
+- **Best for deployment:** set `DATABASE_URL` for PostgreSQL. Tables are auto-created from `server/db/schema.sql` on boot. Point any DB GUI (pgAdmin, TablePlus, DBeaver) at the same URL to inspect tables: `users`, `workspaces`, `files`, `analyses`, `messages`, `outputs`, `notes`.
+- **Local fallback:** if `DATABASE_URL` is empty, the app uses JSON persistence. By default this is `data/db.json`.
+- **Important:** many hosts delete the app folder during redeploy. If you are not using PostgreSQL, set `PERSISTENT_DIR` to a mounted/persistent folder outside the app release directory, for example `/var/data/uaeicp`. The default JSON DB, uploads, and generated files will then live under that folder.
+- Optional path overrides: `DATA_FILE`, `UPLOAD_DIR`, `GENERATED_DIR`.
+- Uploaded files default to `PERSISTENT_DIR/uploads`; generated PPTX files default to `PERSISTENT_DIR/generated` when `PERSISTENT_DIR` is set.
 
 ## File support
 
@@ -73,7 +75,7 @@ Studio types: `pptx`, `memo`, `checklist`, `case_summary`, `policy_comparison`, 
 1. Node 18+ required (uses built-in `fetch`).
 2. Upload the project, run `npm install --production`.
 3. Set environment variables (`.env` or the panel's env settings): `PORT`, strong `JWT_SECRET`, `DATABASE_URL` for the host's PostgreSQL, admin credentials, provider keys.
-4. Ensure `data/uploads` and `generated` are writable (persistent storage).
+4. To keep work after redeploy, use PostgreSQL with `DATABASE_URL`. If PostgreSQL is not available, set `PERSISTENT_DIR` to a persistent mounted folder outside the app directory and ensure it is writable.
 5. Run `npm start` under a process manager (PM2: `pm2 start server/index.js --name uaeicp`).
 6. Put HTTPS in front (host's proxy or nginx). The app is a single Express server serving both API and frontend on one port.
 
