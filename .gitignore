@@ -1,0 +1,14 @@
+# Secrets — never commit
+.env
+
+# Dependencies
+node_modules/
+
+# Runtime data (uploads, local DB, generated files)
+data/
+generated/
+
+# Logs & OS
+*.log
+.DS_Store
+Thumbs.db

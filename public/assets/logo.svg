@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 170" role="img" aria-label="UAEICP emblem">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#D4B06A"/>
+      <stop offset="1" stop-color="#B68A35"/>
+    </linearGradient>
+  </defs>
+  <!-- Stylized golden falcon (placeholder emblem — replace with official ICP logo: save it as logo.png in this folder) -->
+  <g fill="url(#g)">
+    <!-- left wing feathers -->
+    <path d="M116 96 C86 92 60 78 44 52 C60 60 74 63 88 62 C70 52 58 38 52 20 C68 34 84 42 100 45 C92 34 88 22 88 8 C100 22 110 34 116 48 Z"/>
+    <!-- right wing feathers (mirror) -->
+    <path d="M124 96 C154 92 180 78 196 52 C180 60 166 63 152 62 C170 52 182 38 188 20 C172 34 156 42 140 45 C148 34 152 22 152 8 C140 22 130 34 124 48 Z"/>
+    <!-- body -->
+    <path d="M120 42 C130 56 134 74 130 96 C128 110 124 120 120 126 C116 120 112 110 110 96 C106 74 110 56 120 42 Z"/>
+    <!-- head -->
+    <circle cx="120" cy="38" r="7"/>
+    <path d="M120 31 C124 31 127 33 128 36 L133 38 L127 41 C124 43 121 43 118 41 Z"/>
+    <!-- tail -->
+    <path d="M120 128 L112 148 L120 143 L128 148 Z"/>
+  </g>
+  <!-- flag colors base line -->
+  <g>
+    <rect x="70" y="156" width="10" height="6" fill="#C3002F"/>
+    <rect x="80" y="156" width="30" height="6" fill="#007A3D"/>
+    <rect x="110" y="156" width="30" height="6" fill="#FFFFFF" stroke="#E5E1D8" stroke-width="0.5"/>
+    <rect x="140" y="156" width="30" height="6" fill="#232323"/>
+  </g>
+</svg>

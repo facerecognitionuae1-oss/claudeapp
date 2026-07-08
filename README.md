@@ -1,0 +1,92 @@
+# UAEICP Employee Intelligence Workspace
+
+Internal AI-powered document analysis platform for employees of the UAE Federal Authority for Identity, Citizenship, Customs & Port Security. Login-first, workspace-based: upload documents (or start from a typed brief), run structured evidence-first analysis, ask questions in a ChatGPT-style Q&A, and generate memos, checklists, case summaries, policy comparisons, legal/compliance review memos, revised drafts and PowerPoint briefing decks — in English or Arabic (full RTL).
+
+> Internal productivity tool. AI output requires human verification and does not replace legal advice or supervisor approval.
+
+## Quick start
+
+```bash
+npm install
+cp .env.example .env    # edit values
+npm start               # http://localhost:3000
+```
+
+First boot seeds an admin account from `.env` (`ADMIN_USERNAME` / `ADMIN_PASSWORD`, defaults `admin` / `Admin@1234`). Change the password after first login. Admins create employee accounts from the Admin panel.
+
+Works out of the box with **no AI keys** — a clearly-labeled offline demo provider responds so the full flow can be tested. Configure a real provider for production use.
+
+## AI providers
+
+Set any of these in `.env`; users pick the model per question/task from the top bar:
+
+| Provider | Config | Notes |
+|---|---|---|
+| OpenAI | `OPENAI_API_KEY`, `OPENAI_MODEL` | default `gpt-4o-mini` |
+| Anthropic / Claude | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | recommended for PPTX structure |
+| Ollama (Qwen etc.) | `OLLAMA_URL`, `OLLAMA_MODEL` | local models, default `qwen2.5:7b` |
+
+If a provider call fails, the system falls back to the demo responder and tells the user.
+
+## AI modes
+
+- **Guarded** — evidence-first: claims only from uploaded material, heavy citations `[doc: filename, near: "…"]`, HIGH/MEDIUM/LOW confidence labels, gaps stated explicitly.
+- **Unguarded** — exploratory: may propose patterns/hypotheses/next steps, each labeled `[SPECULATIVE]`.
+
+Both modes always include human-verification notes.
+
+## Storage
+
+- **Default:** local JSON persistence at `data/db.json` (no setup).
+- **PostgreSQL:** set `DATABASE_URL` — tables are auto-created from `server/db/schema.sql` on boot. Point any DB GUI (pgAdmin, TablePlus, DBeaver) at the same URL to inspect tables: `users`, `workspaces`, `files`, `analyses`, `messages`, `outputs`, `notes`.
+- Uploaded files → `data/uploads/`; generated PPTX files → `generated/`.
+
+## File support
+
+Text extraction: PDF (`pdf-parse`), DOCX (`mammoth`), XLSX/XLS (`xlsx`), TXT/MD/CSV/JSON. Images are accepted and stored; OCR is not configured (noted in analysis context).
+
+## API overview
+
+```
+POST /api/auth/login                     → { token, user }
+GET  /api/auth/me
+POST /api/auth/change-password
+GET  /api/providers
+GET|POST /api/users                      (admin)
+PATCH|DELETE /api/users/:id              (admin)
+GET|POST /api/workspaces
+GET|PATCH|DELETE /api/workspaces/:id
+GET  /api/workspaces/:id/export          → markdown report
+POST /api/workspaces/:id/notes
+POST /api/workspaces/:wsId/files         (multipart "files", up to 20)
+GET  /api/workspaces/:wsId/files/:id/download
+POST /api/workspaces/:wsId/analysis      { provider?, model?, mode?, language? }
+POST /api/workspaces/:wsId/chat          { question, provider? }   (Arabic question → Arabic answer)
+POST /api/workspaces/:wsId/studio        { type, format?, instructions?, provider? }
+GET  /api/workspaces/:wsId/studio/:id/download
+```
+
+Studio types: `pptx`, `memo`, `checklist`, `case_summary`, `policy_comparison`, `legal_review`, `revised_draft`, `report`. Formats: `md`, `txt`, `json`, `pptx`.
+
+## Deployment (Hostinger / any Node host)
+
+1. Node 18+ required (uses built-in `fetch`).
+2. Upload the project, run `npm install --production`.
+3. Set environment variables (`.env` or the panel's env settings): `PORT`, strong `JWT_SECRET`, `DATABASE_URL` for the host's PostgreSQL, admin credentials, provider keys.
+4. Ensure `data/uploads` and `generated` are writable (persistent storage).
+5. Run `npm start` under a process manager (PM2: `pm2 start server/index.js --name uaeicp`).
+6. Put HTTPS in front (host's proxy or nginx). The app is a single Express server serving both API and frontend on one port.
+
+## Project structure
+
+```
+server/
+  index.js            Express app, seeding, SPA fallback
+  config.js           env config
+  db/schema.sql       PostgreSQL schema
+  storage/            json-store.js | pg-store.js (same interface)
+  middleware/auth.js  JWT + role + workspace ownership guards
+  routes/             auth, users, workspaces, files, analysis, chat, studio
+  services/           prompts.js, ai/ (provider router), extract.js, pptx.js
+public/               SPA (index.html, styles.css, app.js, i18n.js)
+```

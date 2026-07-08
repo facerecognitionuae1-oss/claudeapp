@@ -1,0 +1,25 @@
+{
+  "name": "uaeicp-employee-intelligence-workspace",
+  "version": "1.0.0",
+  "description": "Internal AI-powered document analysis platform for UAEICP employees (Federal Authority for Identity, Citizenship, Customs & Port Security)",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "mammoth": "^1.8.0",
+    "multer": "^1.4.5-lts.1",
+    "pdf-parse": "^1.1.1",
+    "pg": "^8.12.0",
+    "pptxgenjs": "^3.12.0",
+    "uuid": "^9.0.1",
+    "xlsx": "^0.18.5"
+  }
+}
