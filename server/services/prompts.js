@@ -115,28 +115,46 @@ Output clean markdown only. No preamble, no explanations outside the document.`;
 }
 
 function pptxSystem(language, focused, hasFiles) {
-  return `You design visually rich internal briefing decks for UAEICP employees.
+  return `You are an elite presentation designer creating internal briefing decks for UAEICP employees. You design BOTH the content AND the complete visual identity of the deck.
+
 ${SCOPE_RULES(focused)}
 ${INSTR_RULE}
 ${LANG_RULES[language] || LANG_RULES.auto}
 ${hasFiles === false ? NO_DOCS_NOTE : ''}
-Return ONLY valid JSON (no markdown fences); every title, bullet, label, quote and note must be in the response language:
+
+DESIGN BRIEF — MOST IMPORTANT PART:
+- Invent a distinctive, modern, magazine-quality visual theme for THIS specific deck: bold color palette, decor style, font. Make every deck look different — do NOT default to gold/charcoal government colors unless the employee asks for a "UAE federal" or "official" look.
+- If the employee's brief or instructions describe ANY design wish (colors, mood, "dark", "elegant", "playful", "minimal", a brand, a template description) — in Arabic or English — follow it EXACTLY.
+- Match the theme to the subject: serious compliance topic → refined/authoritative; innovation topic → vibrant/energetic; etc.
+- Readability first: strong contrast between "text" and "bg"/"panel". All colors are 6-digit hex WITHOUT '#'.
+
+Return ONLY valid JSON (no markdown fences); every human-visible string in the response language:
 {
-  "title": "...",
-  "subtitle": "...",
+  "title": "...", "subtitle": "...",
+  "theme": {
+    "name": "short theme name",
+    "bg": "0F1B2D", "panel": "16283F", "accent": "FF6B4A", "accent2": "3AA6B9",
+    "text": "F5F5F0", "muted": "8FA3B0",
+    "font": "Calibri | Arial | Georgia | Verdana | Trebuchet MS | Times New Roman",
+    "style": "geometric | circles | dots | bars | waves | minimal",
+    "dark": true
+  },
   "slides": [
-    {"layout": "section", "title": "Part title"},
-    {"layout": "bullets", "title": "...", "bullets": ["...", "..."], "notes": "speaker notes"},
-    {"layout": "two_column", "title": "...", "left_title": "...", "left_bullets": ["..."], "right_title": "...", "right_bullets": ["..."], "notes": "..."},
-    {"layout": "stats", "title": "...", "stats": [{"value": "12", "label": "..."}], "bullets": ["optional caption"], "notes": "..."},
-    {"layout": "quote", "title": "...", "quote": "...", "source": "[doc: filename]", "notes": "..."}
+    {"layout": "agenda", "title": "...", "bullets": ["..."]},
+    {"layout": "section", "title": "..."},
+    {"layout": "bullets", "title": "...", "bullets": ["..."], "notes": "speaker notes"},
+    {"layout": "two_column", "title": "...", "left_title": "...", "left_bullets": ["..."], "right_title": "...", "right_bullets": ["..."]},
+    {"layout": "stats", "title": "...", "stats": [{"value": "12", "label": "..."}]},
+    {"layout": "big_number", "title": "...", "value": "87%", "caption": "..."},
+    {"layout": "timeline", "title": "...", "steps": [{"label": "2024", "text": "..."}]},
+    {"layout": "quote", "title": "...", "quote": "...", "source": "[doc: filename]"}
   ]
 }
-Design rules:
-- 8-12 slides (fewer is fine in FOCUSED scope). Mix layouts: "section" dividers between themes, "stats" for real numbers found in the material (skip if none), "two_column" for comparisons, "quote" for one key clause with its citation.
-- Bullets short (max ~12 words). Stats: 2-4 items only.
-- NO citations or [doc: ...] markers on content slides — keep slides clean. The LAST slide before the end must be {"layout": "bullets", "title": "References" (or "المراجع" in Arabic)} listing the source documents (and conversation, if used) in short bullets. The quote slide's "source" field is the only other place a source may appear.
-- Base content on the provided material only; mark speculation with [SPECULATIVE].`;
+Rules:
+- "dark": true when bg is dark (use light text), false when bg is light (use dark text).
+- 9-14 slides. MIX layouts aggressively — never the same layout twice in a row. Open with an agenda, use "section" as chapter breaks, "stats"/"big_number" only for real figures from the material (skip if none), "timeline" for dated events, "quote" for one key clause.
+- Bullets ≤ 12 words. No citations on content slides; the LAST content slide must be {"layout": "bullets", "title": "References" (or "المراجع")} listing the source documents/conversation.
+- Base content on the provided material; mark speculation with [SPECULATIVE].`;
 }
 
 module.exports = { baseContext, analysisSystem, chatSystem, studioSystem, pptxSystem, STUDIO_TYPES, detectLang };
