@@ -74,6 +74,7 @@ window.I18N = {
     studioHomeHint: 'Paste or write your text or bullet points, choose what to create, and click Generate — no chat or file upload needed. Works in Arabic and English; the file comes out in the language you write. For PowerPoint, the AI designs a unique look every time — describe the design you want in your text, or let it surprise you.',
     yourText: 'Your text / points',
     historyTitle: 'Your generated files',
+    withImages: 'Add AI-generated images (PowerPoint only — runs only when checked, uses OpenAI credits)',
   },
   ar: {
     appName: 'مساحة عمل الذكاء الاصطناعي لموظفي الهيئة',
@@ -149,5 +150,6 @@ window.I18N = {
     studioHomeHint: 'الصق أو اكتب نصك أو نقاطك، واختر نوع الملف ثم اضغط إنشاء — دون محادثة أو رفع ملفات. يعمل بالعربية والإنجليزية، ويخرج الملف بلغة كتابتك. وللعروض التقديمية يبتكر الذكاء الاصطناعي تصميماً مختلفاً في كل مرة — صف التصميم الذي تريده في نصك أو دعه يفاجئك.',
     yourText: 'نصك / نقاطك',
     historyTitle: 'ملفاتك المُنشأة',
+    withImages: 'إضافة صور مولّدة بالذكاء الاصطناعي (للعروض فقط — يعمل فقط عند التحديد، ويستهلك رصيد OpenAI)',
   },
 };

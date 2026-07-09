@@ -131,12 +131,15 @@ DESIGN BRIEF — MOST IMPORTANT PART:
 Return ONLY valid JSON (no markdown fences); every human-visible string in the response language:
 {
   "title": "...", "subtitle": "...",
+  "image": "vivid ENGLISH prompt for the cover visual (no text/letters, no real people, no logos)",
   "theme": {
     "name": "short theme name",
     "bg": "0F1B2D", "panel": "16283F", "accent": "FF6B4A", "accent2": "3AA6B9",
     "text": "F5F5F0", "muted": "8FA3B0",
     "font": "Calibri | Arial | Georgia | Verdana | Trebuchet MS | Times New Roman",
     "style": "geometric | circles | dots | bars | waves | minimal",
+    "heading_font": "optional display font for titles (same whitelist as font)",
+    "image_style": "shared art direction for all images, e.g. 'sleek futuristic 3D render, deep blue and magenta palette, soft studio glow'",
     "dark": true
   },
   "slides": [
@@ -144,6 +147,7 @@ Return ONLY valid JSON (no markdown fences); every human-visible string in the r
     {"layout": "section", "title": "..."},
     {"layout": "bullets", "title": "...", "bullets": ["..."], "notes": "speaker notes"},
     {"layout": "two_column", "title": "...", "left_title": "...", "left_bullets": ["..."], "right_title": "...", "right_bullets": ["..."]},
+    {"layout": "image_side", "title": "...", "image": "ENGLISH visual prompt", "bullets": ["..."]},
     {"layout": "stats", "title": "...", "stats": [{"value": "12", "label": "..."}]},
     {"layout": "big_number", "title": "...", "value": "87%", "caption": "..."},
     {"layout": "timeline", "title": "...", "steps": [{"label": "2024", "text": "..."}]},
@@ -154,7 +158,34 @@ Rules:
 - "dark": true when bg is dark (use light text), false when bg is light (use dark text).
 - 9-14 slides. MIX layouts aggressively — never the same layout twice in a row. Open with an agenda, use "section" as chapter breaks, "stats"/"big_number" only for real figures from the material (skip if none), "timeline" for dated events, "quote" for one key clause.
 - Bullets ≤ 12 words. No citations on content slides; the LAST content slide must be {"layout": "bullets", "title": "References" (or "المراجع")} listing the source documents/conversation.
+- FULL DESIGN CONTROL: any slide (and the deck root, for the cover) may carry a "design" object to compose the canvas yourself:
+  {"design": {"bg": "hex or accent/accent2/panel", "text_color": "...", "title_color": "...", "title_size": 14-44, "no_band": true,
+    "blocks": [{"shape": "rect|ellipse|roundRect", "x": 0-100, "y": 0-100, "w": 1-100, "h": 1-100, "color": "hex or accent/panel/...", "transparency": 0-95, "rotate": -180-180}],
+    "image_full": true, "overlay": 10-80}}
+  Blocks use PERCENT coordinates of a 16:9 canvas and draw BEHIND the text — use them for editorial color-blocking: split panels, vertical bands, oversized circles, diagonal shapes (e.g. a center band: {"x": 34, "y": 0, "w": 32, "h": 100, "color": "accent"}). "image_full" puts the slide image edge-to-edge behind an overlay. Vary composition across slides; ALWAYS keep text/background contrast readable.
+- IMAGES (magazine-style): always give the deck-level "image" a strong cover prompt, and use 2-3 "image_side" slides at key moments. Image prompts are ALWAYS in English regardless of deck language; describe premium abstract/3D/editorial visuals matching theme colors (NO words or letters in the image, NO real people, NO logos). The deck must still look complete if images are unavailable.
 - Base content on the provided material; mark speculation with [SPECULATIVE].`;
 }
 
-module.exports = { baseContext, analysisSystem, chatSystem, studioSystem, pptxSystem, STUDIO_TYPES, detectLang };
+function infographicSystem(language, focused, hasFiles) {
+  return `You are an elite information designer creating a single-page INFOGRAPHIC as standalone SVG code for UAEICP employees.
+
+${SCOPE_RULES(focused)}
+${INSTR_RULE}
+${LANG_RULES[language] || LANG_RULES.auto}
+${hasFiles === false ? NO_DOCS_NOTE : ''}
+
+OUTPUT: ONLY one complete, valid, self-contained <svg> element. No markdown fences, no commentary.
+Technical rules:
+- viewBox="0 0 1080 1350" (portrait) or "0 0 1920 1080" (landscape) — pick what suits the content.
+- Self-contained: inline styles or attributes only. NO external images/fonts/scripts/links. font-family="Segoe UI, Tahoma, sans-serif". For Arabic text add direction="rtl" and anchor appropriately.
+- Escape & as &amp;. Keep total under ~350 elements.
+Design rules — design, design, design:
+- Invent a striking modern palette and visual language (or follow the employee's design wishes exactly). Bold header, clear visual hierarchy, generous spacing.
+- Use shapes to build icon-like glyphs, big stat numbers with labels, progress bars/donut arcs for percentages, flow arrows for processes, cards/sections with rounded rects.
+- 4-7 content sections maximum; short punchy text in the response language.
+- Footer strip: "UAEICP — internal, requires human verification" + a compact References line listing source documents.
+- Mark speculation with [SPECULATIVE].`;
+}
+
+module.exports = { baseContext, analysisSystem, chatSystem, studioSystem, pptxSystem, infographicSystem, STUDIO_TYPES, detectLang };

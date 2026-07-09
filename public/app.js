@@ -205,8 +205,9 @@
           <label class="f" style="margin-top:0">${t('yourText')}</label>
           <textarea class="input" name="text" rows="9" required placeholder="${t('briefPh')}">${esc(S.studioDraft || '')}</textarea>
           <label class="f">${t('outputType')}</label>
-          <select class="input" name="type" onchange="this.form.format.disabled=(this.value==='pptx')">
+          <select class="input" name="type" onchange="this.form.format.disabled=(this.value==='pptx'||this.value==='infographic')">
             <option value="pptx">PowerPoint</option>
+            <option value="infographic">Infographic (AI-designed)</option>
             <option value="memo">Internal Memo</option>
             <option value="report">Report</option>
             <option value="checklist">Checklist</option>
@@ -221,6 +222,7 @@
             <option value="txt">Text (.txt)</option>
             <option value="json">JSON (.json)</option>
           </select>
+          <label class="f" style="display:flex;align-items:flex-start;gap:8px;font-weight:600"><input type="checkbox" name="withImages" style="margin-top:3px"> <span>${t('withImages')}</span></label>
           <div class="help" style="margin-top:10px">${t('claudeHint')}</div>
           <button class="btn btn-primary" style="width:100%;margin-top:16px" ${busy ? 'disabled' : ''}>
             ${busy ? `<span class="spinner"></span> ${t('generating')}` : `✦ ${t('generate')}`}</button>
@@ -512,7 +514,7 @@
     const b = S.ws;
     const busy = S.busy.studio;
     const types = [
-      ['pptx', 'PowerPoint Briefing Deck'], ['memo', 'Internal Memo'], ['checklist', 'Service Checklist'],
+      ['pptx', 'PowerPoint Briefing Deck'], ['infographic', 'Infographic (AI-designed)'], ['memo', 'Internal Memo'], ['checklist', 'Service Checklist'],
       ['case_summary', 'Case Summary'], ['policy_comparison', 'Policy Comparison'],
       ['legal_review', 'Legal / Compliance Review'], ['revised_draft', 'Revised Document Draft'], ['report', 'Analysis Report'],
     ];
@@ -521,7 +523,7 @@
         <div>
           <form class="card" style="padding:20px" onsubmit="A.generate(event)">
             <label class="f" style="margin-top:0">${t('outputType')}</label>
-            <select class="input" name="type" onchange="this.form.format.disabled=(this.value==='pptx')">
+            <select class="input" name="type" onchange="this.form.format.disabled=(this.value==='pptx'||this.value==='infographic')">
               ${types.map(([id, label]) => `<option value="${id}">${esc(label)}</option>`).join('')}
             </select>
             <label class="f">${t('format')}</label>
@@ -532,6 +534,7 @@
             </select>
             <label class="f">${t('extraInstructions')}</label>
             <textarea class="input" name="instructions" rows="4"></textarea>
+            <label class="f" style="display:flex;align-items:flex-start;gap:8px;font-weight:600"><input type="checkbox" name="withImages" style="margin-top:3px"> <span>${t('withImages')}</span></label>
             <label class="f">${t('scopeLabel')}</label>
             <div class="choices">
               <label class="choice-card"><input type="radio" name="scope" value="general" checked><span class="cc-title">${t('scopeGeneral')}</span></label>
@@ -866,7 +869,7 @@
       try {
         const r = await api(`/workspaces/${S.ws.workspace.id}/studio`, {
           method: 'POST',
-          body: JSON.stringify({ type: f.type.value, format: f.format.disabled ? 'pptx' : f.format.value, instructions: f.instructions.value, scope: f.scope.value, provider: S.provider }),
+          body: JSON.stringify({ type: f.type.value, format: f.format.disabled ? 'pptx' : f.format.value, instructions: f.instructions.value, scope: f.scope.value, provider: S.provider, withImages: f.withImages ? f.withImages.checked : false }),
         });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true);
         else toast('✓');
@@ -880,7 +883,7 @@
       <div class="overlay" onclick="if(event.target===this)A.closeModal()">
         <div class="modal" style="width:760px">
           <h3>${esc(o.title)}</h3>
-          <div class="output-view">${o.format === 'json' ? `<pre style="white-space:pre-wrap">${esc(o.content)}</pre>` : md(o.content)}</div>
+          <div class="output-view">${o.format === 'svg' ? `<img style="max-width:100%;height:auto;background:#fff;border-radius:8px" src="data:image/svg+xml;utf8,${encodeURIComponent(o.content)}">` : o.format === 'json' ? `<pre style="white-space:pre-wrap">${esc(o.content)}</pre>` : md(o.content)}</div>
           <div class="actions">
             <button class="btn btn-ghost" onclick="A.closeModal()">${t('cancel')}</button>
             <button class="btn btn-ghost" onclick="A.copyOutput('${o.id}')">⧉</button>
@@ -961,7 +964,7 @@
       const f = e.target;
       const text = f.text.value.trim(); if (!text) return;
       const type = f.type.value;
-      const format = type === 'pptx' ? 'pptx' : f.format.value;
+      const format = type === 'pptx' ? 'pptx' : type === 'infographic' ? 'svg' : f.format.value;
       S.studioDraft = text;
       S.busy.studioHome = true; render();
       try {
@@ -971,7 +974,7 @@
         }
         const r = await api(`/workspaces/${S.studioWs.workspace.id}/studio`, {
           method: 'POST',
-          body: JSON.stringify({ type, format, instructions: text, scope: 'focused', provider: S.provider, preferClaude: true }),
+          body: JSON.stringify({ type, format, instructions: text, scope: 'focused', provider: S.provider, preferClaude: true, withImages: f.withImages ? f.withImages.checked : false }),
         });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true); else toast('✓');
         S.studioWs = await api('/workspaces/' + S.studioWs.workspace.id);
@@ -1023,6 +1026,7 @@
           <label class="f">${t('outputType')}</label>
           <select class="input" name="type">
             <option value="pptx">PowerPoint</option>
+            <option value="infographic">Infographic (AI-designed)</option>
             <option value="report">Report</option>
             <option value="memo">Memo</option>
             <option value="case_summary">Case Summary</option>
@@ -1030,6 +1034,7 @@
           <div class="help">${t('claudeHint')}</div>
           <label class="f">${t('extraInstructions')}</label>
           <textarea class="input" name="instructions" rows="3"></textarea>
+          <label class="f" style="display:flex;align-items:flex-start;gap:8px;font-weight:600"><input type="checkbox" name="withImages" style="margin-top:3px"> <span>${t('withImages')}</span></label>
           <div class="actions">
             <button type="button" class="btn btn-ghost" onclick="A.closeModal()">${t('cancel')}</button>
             <button class="btn btn-primary">✦ ${t('generate')}</button>
@@ -1046,7 +1051,7 @@
       try {
         const r = await api(`/workspaces/${S.chatWs.workspace.id}/studio`, {
           method: 'POST',
-          body: JSON.stringify({ type, format: type === 'pptx' ? 'pptx' : 'md', instructions, scope: 'general', provider: S.provider, preferClaude: true }),
+          body: JSON.stringify({ type, format: type === 'pptx' ? 'pptx' : type === 'infographic' ? 'svg' : 'md', instructions, scope: 'general', provider: S.provider, preferClaude: true, withImages: f.withImages ? f.withImages.checked : false }),
         });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true); else toast('✓');
         S.chatWs = await api('/workspaces/' + S.chatWs.workspace.id);

@@ -5,7 +5,7 @@ const config = require('../config');
 const store = require('../storage');
 const { requireAuth, requireWorkspace } = require('../middleware/auth');
 const ai = require('../services/ai');
-const { baseContext, studioSystem, pptxSystem, STUDIO_TYPES, detectLang } = require('../services/prompts');
+const { baseContext, studioSystem, pptxSystem, infographicSystem, STUDIO_TYPES, detectLang } = require('../services/prompts');
 const { buildDeck } = require('../services/pptx');
 
 const router = express.Router({ mergeParams: true });
@@ -54,8 +54,21 @@ router.post('/', requireWorkspace, async (req, res) => {
     const spec = ai.parseJson(out.text);
     if (!spec || !Array.isArray(spec.slides))
       return res.status(502).json({ error: 'Model returned an invalid deck specification', raw: out.text.slice(0, 1500) });
+
+    // Optional AI imagery — only when the user explicitly enabled it (uses OpenAI credits).
+    const images = {};
+    if (req.body?.withImages && cfg.providers.openai.key) {
+      const { generateImage } = require('../services/images');
+      const styleSuffix = spec.theme?.image_style ? ` Style: ${spec.theme.image_style}.` : '';
+      const jobs = [];
+      if (spec.image) jobs.push(['cover', spec.image]);
+      (spec.slides || []).forEach((sl2, i2) => { if (sl2.image && jobs.length < 4) jobs.push(['s' + i2, sl2.image]); });
+      const done = await Promise.all(jobs.map(async ([k, p]) => [k, await generateImage(p + styleSuffix)]));
+      for (const [k, buf] of done) if (buf) images[k] = buf;
+    }
+
     const fileBase = `deck-${ws.id.slice(0, 8)}-${Date.now()}`;
-    const fileName = await buildDeck(spec, fileBase, language === 'ar');
+    const fileName = await buildDeck(spec, fileBase, language === 'ar', images);
     let fileData = null;
     try { fileData = require('fs').readFileSync(path.join(config.generatedDir, fileName)); } catch {}
     const output = await store.addOutput({
@@ -67,6 +80,19 @@ router.post('/', requireWorkspace, async (req, res) => {
     logAction(req.user, 'generate', ws.id, `pptx · ${spec.title || ''}`);
     const { file_data, ...pub } = output;
     return res.status(201).json({ output: pub, fallbackError: out.fallbackError });
+  }
+
+  if (type === 'infographic') {
+    const out = await ai.chat({ provider: useProvider || provider, model, system: infographicSystem(language, focused, hasFiles), user: context + '\n\nDesign the infographic now.' });
+    const m = out.text.match(/<svg[\s\S]*<\/svg>/i);
+    if (!m) return res.status(502).json({ error: 'Model returned invalid SVG', raw: out.text.slice(0, 1500) });
+    const output = await store.addOutput({
+      id: uuid(), workspace_id: ws.id, type: 'infographic', format: 'svg',
+      title: language === 'ar' ? 'إنفوجرافيك' : 'Infographic', file_name: '',
+      content: m[0], provider: out.provider, created_at: new Date().toISOString(),
+    });
+    logAction(req.user, 'generate', ws.id, 'infographic · svg');
+    return res.status(201).json({ output, fallbackError: out.fallbackError });
   }
 
   const t = STUDIO_TYPES[type];
@@ -98,8 +124,8 @@ router.get('/:outputId/download', requireWorkspace, async (req, res) => {
     if (o.file_name) return res.download(path.join(config.generatedDir, o.file_name), o.file_name);
     return res.status(404).json({ error: 'Deck file not found' });
   }
-  const ext = o.format === 'json' ? 'json' : o.format === 'txt' ? 'txt' : 'md';
-  const mime = o.format === 'json' ? 'application/json' : 'text/markdown';
+  const ext = o.format === 'json' ? 'json' : o.format === 'txt' ? 'txt' : o.format === 'svg' ? 'svg' : 'md';
+  const mime = o.format === 'json' ? 'application/json' : o.format === 'svg' ? 'image/svg+xml' : 'text/markdown';
   res.setHeader('Content-Type', `${mime}; charset=utf-8`);
   res.setHeader('Content-Disposition', `attachment; filename="${o.type}-${o.id.slice(0, 8)}.${ext}"`);
   res.send(o.content);
