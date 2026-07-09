@@ -33,8 +33,10 @@ router.get('/:id', requireWorkspace, async (req, res) => {
   ]);
   res.json({
     workspace: ws,
-    files: files.map(({ extracted_text, ...f }) => ({ ...f, has_text: !!(extracted_text || '').trim() })),
-    analyses, messages, outputs, notes,
+    files: files.map(({ extracted_text, file_data, ...f }) => ({ ...f, has_text: !!(extracted_text || '').trim() })),
+    analyses, messages,
+    outputs: outputs.map(({ file_data, ...o }) => o),
+    notes,
   });
 });
 

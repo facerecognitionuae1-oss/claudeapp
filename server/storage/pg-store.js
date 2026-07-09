@@ -5,6 +5,7 @@ const { Pool } = require('pg');
 
 class PgStore {
   constructor(cfg) {
+    this.supportsBinaryStorage = true;
     this.pool = new Pool({
       connectionString: cfg.databaseUrl,
       ssl: cfg.pgSsl ? { rejectUnauthorized: false } : false,
@@ -63,12 +64,17 @@ class PgStore {
   // Files
   async addFile(f) {
     await this.q(
-      `INSERT INTO files (id, workspace_id, original_name, stored_name, mime_type, size_bytes, extracted_text, uploaded_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [f.id, f.workspace_id, f.original_name, f.stored_name, f.mime_type, f.size_bytes, f.extracted_text, f.uploaded_at]);
+      `INSERT INTO files (id, workspace_id, original_name, stored_name, mime_type, size_bytes, extracted_text, file_data, uploaded_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [f.id, f.workspace_id, f.original_name, f.stored_name, f.mime_type, f.size_bytes, f.extracted_text, f.file_data || null, f.uploaded_at]);
     return f;
   }
-  async listFiles(wsId) { return this.q('SELECT * FROM files WHERE workspace_id=$1 ORDER BY uploaded_at', [wsId]); }
+  async listFiles(wsId) {
+    return this.q(
+      `SELECT id, workspace_id, original_name, stored_name, mime_type, size_bytes, extracted_text, uploaded_at
+       FROM files WHERE workspace_id=$1 ORDER BY uploaded_at`,
+      [wsId]);
+  }
   async getFile(id) { return (await this.q('SELECT * FROM files WHERE id=$1', [id]))[0] || null; }
   async deleteFile(id) { await this.q('DELETE FROM files WHERE id=$1', [id]); }
 
@@ -95,12 +101,17 @@ class PgStore {
   // Outputs
   async addOutput(o) {
     await this.q(
-      `INSERT INTO outputs (id, workspace_id, type, format, title, file_name, content, provider, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [o.id, o.workspace_id, o.type, o.format, o.title, o.file_name, o.content, o.provider, o.created_at]);
+      `INSERT INTO outputs (id, workspace_id, type, format, title, file_name, content, file_data, provider, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [o.id, o.workspace_id, o.type, o.format, o.title, o.file_name, o.content, o.file_data || null, o.provider, o.created_at]);
     return o;
   }
-  async listOutputs(wsId) { return this.q('SELECT * FROM outputs WHERE workspace_id=$1 ORDER BY created_at DESC', [wsId]); }
+  async listOutputs(wsId) {
+    return this.q(
+      `SELECT id, workspace_id, type, format, title, file_name, content, provider, created_at
+       FROM outputs WHERE workspace_id=$1 ORDER BY created_at DESC`,
+      [wsId]);
+  }
   async getOutput(id) { return (await this.q('SELECT * FROM outputs WHERE id=$1', [id]))[0] || null; }
 
   // Notes

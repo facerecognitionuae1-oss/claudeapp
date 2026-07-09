@@ -37,11 +37,11 @@ Both modes always include human-verification notes.
 
 ## Storage
 
-- **Best for deployment:** set `DATABASE_URL` for PostgreSQL. Tables are auto-created from `server/db/schema.sql` on boot. Point any DB GUI (pgAdmin, TablePlus, DBeaver) at the same URL to inspect tables: `users`, `workspaces`, `files`, `analyses`, `messages`, `outputs`, `notes`.
+- **Best for deployment:** set `DATABASE_URL` for PostgreSQL. Tables are auto-created from `server/db/schema.sql` on boot. PostgreSQL stores users, workspaces, uploaded files, extracted text, analyses, chat history, generated outputs, notes, and activity logs.
 - **Local fallback:** if `DATABASE_URL` is empty, the app uses JSON persistence. By default this is `data/db.json`.
 - **Important:** many hosts delete the app folder during redeploy. If you are not using PostgreSQL, set `PERSISTENT_DIR` to a mounted/persistent folder outside the app release directory, for example `/var/data/uaeicp`. The default JSON DB, uploads, and generated files will then live under that folder.
 - Optional path overrides: `DATA_FILE`, `UPLOAD_DIR`, `GENERATED_DIR`.
-- Uploaded files default to `PERSISTENT_DIR/uploads`; generated PPTX files default to `PERSISTENT_DIR/generated` when `PERSISTENT_DIR` is set.
+- Uploaded files default to `PERSISTENT_DIR/uploads`; generated PPTX files default to `PERSISTENT_DIR/generated` when `PERSISTENT_DIR` is set. With PostgreSQL enabled, uploaded files and generated PPTX files are also saved in the database so downloads survive redeploys even if the app folder is replaced.
 
 ## File support
 

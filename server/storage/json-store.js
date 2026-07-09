@@ -4,6 +4,7 @@ const path = require('path');
 
 class JsonStore {
   constructor(dataFile) {
+    this.supportsBinaryStorage = false;
     this.file = dataFile;
     fs.mkdirSync(path.dirname(dataFile), { recursive: true });
     if (fs.existsSync(dataFile)) {

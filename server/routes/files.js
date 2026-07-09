@@ -30,9 +30,11 @@ router.post('/', requireWorkspace, upload.array('files', 20), async (req, res) =
       id: uuid(), workspace_id: req.workspace.id,
       original_name: f.originalname, stored_name: f.filename,
       mime_type: f.mimetype, size_bytes: f.size,
-      extracted_text: text, uploaded_at: new Date().toISOString(),
+      extracted_text: text,
+      file_data: store.supportsBinaryStorage ? fs.readFileSync(f.path) : undefined,
+      uploaded_at: new Date().toISOString(),
     });
-    const { extracted_text, ...pub } = rec;
+    const { extracted_text, file_data, ...pub } = rec;
     saved.push({ ...pub, has_text: !!(text || '').trim() });
   }
   await store.updateWorkspace(req.workspace.id, {});
@@ -51,6 +53,11 @@ router.delete('/:fileId', requireWorkspace, async (req, res) => {
 router.get('/:fileId/download', requireWorkspace, async (req, res) => {
   const f = await store.getFile(req.params.fileId);
   if (!f || f.workspace_id !== req.workspace.id) return res.status(404).json({ error: 'File not found' });
+  if (f.file_data) {
+    res.setHeader('Content-Type', f.mime_type || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(f.original_name)}"`);
+    return res.send(Buffer.from(f.file_data));
+  }
   res.download(path.join(config.uploadDir, f.stored_name), f.original_name);
 });
 

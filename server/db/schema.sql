@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS files (
   mime_type TEXT DEFAULT '',
   size_bytes BIGINT DEFAULT 0,
   extracted_text TEXT DEFAULT '',
+  file_data BYTEA,
   uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -64,6 +65,7 @@ CREATE TABLE IF NOT EXISTS outputs (
   title TEXT NOT NULL,
   file_name TEXT DEFAULT '',
   content TEXT DEFAULT '',
+  file_data BYTEA,
   provider TEXT DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -77,6 +79,8 @@ CREATE TABLE IF NOT EXISTS notes (
 );
 
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'analysis';
+ALTER TABLE files ADD COLUMN IF NOT EXISTS file_data BYTEA;
+ALTER TABLE outputs ADD COLUMN IF NOT EXISTS file_data BYTEA;
 
 CREATE TABLE IF NOT EXISTS logs (
   id UUID PRIMARY KEY,
