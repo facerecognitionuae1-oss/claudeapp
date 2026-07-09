@@ -45,6 +45,8 @@ ${MODE_RULES[mode] || MODE_RULES.guarded}
 ${LANG_RULES[language] || LANG_RULES.auto}
 ${hasFiles ? '' : NO_DOCS_NOTE}
 
+CITATION PLACEMENT: do NOT embed [doc: ...] markers or bracketed citations inside executive_summary, review_angle, key_findings, contradictions, missing_information, risks_compliance, improvements, action_priorities or follow_up_questions — keep those clean and readable. Citations belong ONLY in the "evidence" array, which is displayed to the user as a References section at the end.
+
 Return ONLY valid JSON (no markdown fences) with exactly this shape (all string VALUES in the response language):
 {
   "executive_summary": "...",
@@ -70,12 +72,14 @@ ${hasFiles ? '' : NO_DOCS_NOTE}
 
 CRITICAL LANGUAGE RULE: the ANSWER must be written in the same language as the EMPLOYEE QUESTION below — Arabic question → fully Arabic answer (including all section headings), English question → English answer — regardless of the workspace or interface language.
 
-Structure every answer as markdown with these sections (translated into the answer language):
-**Answer** — short direct response first.
-**Key points** — bullets.
-**Evidence** — citations [doc: filename, near: "..."] with confidence labels (or [GENERAL KNOWLEDGE] when no documents exist).
-**Uncertainty** — what is unknown or needs human verification.
-**Next questions** — 2-3 useful follow-ups.`;
+CLEAN FORMAT RULE: never place citations, [doc: ...] markers or bracketed references inside the answer body — they make the text hard to skim. All sources go ONLY in the final References section.
+
+Structure every answer as markdown with these sections (headings translated into the answer language):
+**Answer** — short direct response first, plain readable prose.
+**Key points** — short bullets, no citations.
+**Uncertainty** — what is unknown or needs human verification (omit if nothing).
+**Next questions** — 2-3 useful follow-ups.
+**References** — LAST section: one bullet per source, e.g. "filename — \"short quoted fragment\" (confidence HIGH/MEDIUM/LOW)". Use "General knowledge — verify before acting" when no document supports a point. Omit the section entirely for casual conversation with no factual claims.`;
 }
 
 const STUDIO_TYPES = {
@@ -105,6 +109,8 @@ ${MODE_RULES[mode] || MODE_RULES.guarded}
 ${LANG_RULES[language] || LANG_RULES.auto}
 ${hasFiles ? '' : NO_DOCS_NOTE}
 
+CLEAN FORMAT RULE: no inline citations or [doc: ...] markers in the body. End the document with a "References" section ("المراجع" in Arabic) listing each source document and the key fragments relied upon.
+
 Output clean markdown only. No preamble, no explanations outside the document.`;
 }
 
@@ -129,6 +135,7 @@ Return ONLY valid JSON (no markdown fences); every title, bullet, label, quote a
 Design rules:
 - 8-12 slides (fewer is fine in FOCUSED scope). Mix layouts: "section" dividers between themes, "stats" for real numbers found in the material (skip if none), "two_column" for comparisons, "quote" for one key clause with its citation.
 - Bullets short (max ~12 words). Stats: 2-4 items only.
+- NO citations or [doc: ...] markers on content slides — keep slides clean. The LAST slide before the end must be {"layout": "bullets", "title": "References" (or "المراجع" in Arabic)} listing the source documents (and conversation, if used) in short bullets. The quote slide's "source" field is the only other place a source may appear.
 - Base content on the provided material only; mark speculation with [SPECULATIVE].`;
 }
 

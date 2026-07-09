@@ -7,6 +7,12 @@ const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
+const logAction = (user, action, wsId, detail) => {
+  try {
+    store.addLog({ id: require('uuid').v4(), user_id: user.id, username: user.username, action, workspace_id: wsId || null, detail: String(detail || '').slice(0, 400), created_at: new Date().toISOString() });
+  } catch {}
+};
+
 function publicUser(u) {
   const { password_hash, ...rest } = u;
   return rest;
@@ -20,6 +26,7 @@ router.post('/login', async (req, res) => {
   const ok = await bcrypt.compare(password, user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
   const token = jwt.sign({ sub: user.id, role: user.role }, config.jwtSecret, { expiresIn: '12h' });
+  logAction(user, 'login', null, '');
   res.json({ token, user: publicUser(user) });
 });
 

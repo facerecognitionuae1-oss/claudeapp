@@ -6,6 +6,12 @@ const ai = require('../services/ai');
 const { baseContext, analysisSystem, detectLang } = require('../services/prompts');
 
 const router = express.Router({ mergeParams: true });
+
+const logAction = (user, action, wsId, detail) => {
+  try {
+    store.addLog({ id: require('uuid').v4(), user_id: user.id, username: user.username, action, workspace_id: wsId || null, detail: String(detail || '').slice(0, 400), created_at: new Date().toISOString() });
+  } catch {}
+};
 router.use(requireAuth);
 
 // POST /api/workspaces/:wsId/analysis  { provider?, model?, mode?, language? }
@@ -31,6 +37,7 @@ router.post('/', requireWorkspace, async (req, res) => {
     result, created_at: new Date().toISOString(),
   });
   await store.updateWorkspace(ws.id, { mode });
+  logAction(req.user, 'analysis', ws.id, `${mode} · ${out.provider} · ${ws.title}`);
   res.status(201).json({ analysis, fallbackError: out.fallbackError });
 });
 

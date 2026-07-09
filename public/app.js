@@ -16,6 +16,8 @@
     pendingFiles: [],
     draft: {},
     createStep: '',
+    chats: [],
+    chatWs: null,
   };
 
   const t = k => (I18N[S.lang] && I18N[S.lang][k]) || I18N.en[k] || k;
@@ -136,7 +138,8 @@
           ${S.providers.map(p => `<option value="${p.id}" ${p.id === S.provider ? 'selected' : ''}>${esc(p.label)}${p.configured ? '' : ' ⚠'}</option>`).join('')}
         </select>
         ${langSelect('')}
-        <button class="btn btn-ghost btn-sm" onclick="A.nav('dashboard')">${t('dashboard')}</button>
+        <button class="btn btn-ghost btn-sm" onclick="A.nav('assistant')">💬 ${t('assistant')}</button>
+        <button class="btn btn-ghost btn-sm" onclick="A.nav('dashboard')">${t('analysisTool')}</button>
         ${u.role === 'admin' ? `<button class="btn btn-ghost btn-sm" onclick="A.nav('admin')">${t('admin')}</button>` : ''}
         <span class="user">${esc(u.full_name || u.username)}</span>
         <button class="btn btn-ghost btn-sm" title="${t('changePassword')}" onclick="A.openChangePw()">🔑</button>
@@ -144,6 +147,44 @@
       </div>
       <div class="main">${content}</div>
     </div>`;
+  }
+
+  function assistantView() {
+    const b = S.chatWs;
+    const busy = S.busy.assist;
+    const outputs = b ? b.outputs : [];
+    return `
+      <div class="assist-grid">
+        <div class="card chat-list">
+          <div style="padding:12px"><button class="btn btn-primary" style="width:100%" onclick="A.newChat()">+ ${t('newChat')}</button></div>
+          ${S.chats.map(c => `<div class="chat-item ${b && b.workspace.id === c.id ? 'active' : ''}" onclick="A.openChat('${c.id}')"><div class="ci-title">${esc(c.title)}</div><div class="ci-when">${new Date(c.updated_at).toLocaleDateString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</div></div>`).join('')}
+        </div>
+        <div class="card assist-box">
+          <div class="assist-head">
+            <strong>${b ? esc(b.workspace.title) : t('assistant')}</strong>
+            <div class="grow"></div>
+            ${S.busy.gen ? `<span class="spinner dark"></span>` : ''}
+            ${b && b.messages.length ? `<button class="btn btn-dark btn-sm" onclick="A.openGenFromChat()">✦ ${t('makeFromChat')}</button>` : ''}
+          </div>
+          ${outputs.length ? `<div class="assist-outs">${outputs.map(o => `<button class="btn btn-ghost btn-sm" onclick="A.downloadChatOutput('${o.id}')">⬇ ${esc(o.title)}</button>`).join('')}</div>` : ''}
+          <div class="chat-log" id="assist-log">
+            ${!b || b.messages.length === 0 ? `
+            <div class="empty-state">
+              <div class="big">💬</div>
+              <strong style="color:var(--black);font-size:17px">${t('chatWelcomeTitle')}</strong>
+              <div style="max-width:480px;margin:10px auto 0">${t('chatWelcomeBody')}</div>
+            </div>` : ''}
+            ${b ? b.messages.map(m => `
+              <div class="msg ${m.role}">${m.role === 'assistant' ? md(m.content) : esc(m.content)}</div>`).join('') : ''}
+            ${busy ? `<div class="msg assistant"><span class="spinner dark"></span></div>` : ''}
+          </div>
+          <form class="chat-input" onsubmit="A.sendAssist(event)">
+            <textarea class="input" name="q" placeholder="${t('typeMessage')}" ${busy ? 'disabled' : ''}
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.requestSubmit();}"></textarea>
+            <button class="btn btn-primary" ${busy ? 'disabled' : ''}>${t('send')}</button>
+          </form>
+        </div>
+      </div>`;
   }
 
   function dashboardView() {
@@ -360,26 +401,29 @@
       <div class="disclaimer-bar">⚠ ${t('disclaimer')}</div>
       ${a.provider === 'demo' ? `<div class="disclaimer-bar demo-bar">ℹ ${t('demoNotice')}</div>` : ''}
       <div class="card a-section"><h4>${t('execSummary')}</h4><div class="exec">${esc(r.executive_summary || '')}</div></div>
-      <div class="card a-section"><h4>${t('reviewAngle')}</h4><div class="exec">${esc(r.review_angle || '')}</div></div>
       <div class="card a-section"><h4>${t('keyFindings')}</h4>
         ${(r.key_findings || []).map(k => `<div class="item"><div class="grow">${k.speculative ? `<span class="badge spec">${t('speculative')}</span> ` : ''}${esc(k.finding)}</div>${conf(k.confidence)}</div>`).join('') || '—'}
       </div>
-      <div class="card a-section"><h4>${t('evidence')}</h4>
-        ${(r.evidence || []).map(e => `<div class="item"><div class="grow">${esc(e.point)} <span class="cite">${esc(e.citation || '')}</span></div>${conf(e.confidence)}</div>`).join('') || '—'}
-      </div>
-      <div class="card a-section"><h4>${t('contradictions')}</h4>${list(r.contradictions)}</div>
       <div class="card a-section"><h4>${t('missingInfo')}</h4>${list(r.missing_information)}</div>
       <div class="card a-section"><h4>${t('risks')}</h4>
         ${(r.risks_compliance || []).map(x => `<div class="item"><div class="grow"><strong>${esc(x.risk)}</strong>${x.note ? `<div style="font-size:13px;color:var(--muted)">${esc(x.note)}</div>` : ''}</div><span class="badge ${String(x.severity || '').toLowerCase()}">${esc(x.severity || '')}</span></div>`).join('') || '—'}
       </div>
-      <div class="card a-section"><h4>${t('improvements')}</h4>${list(r.improvements)}</div>
       <div class="card a-section"><h4>${t('actions')}</h4>
         ${(r.action_priorities || []).sort((x, y) => x.priority - y.priority).map(p => `<div class="item"><span class="badge gold">${p.priority}</span><div class="grow">${esc(p.action)}</div></div>`).join('') || '—'}
       </div>
       <div class="card a-section"><h4>${t('followUps')}</h4>
         ${(r.follow_up_questions || []).map(q => `<div class="item"><div class="grow">${esc(q)}</div><button class="btn btn-ghost btn-sm" onclick="A.askFromAnalysis(${attrJson(q)})">→ ${t('chat')}</button></div>`).join('') || '—'}
       </div>
-      <div class="card a-section"><h4>${t('humanVerify')}</h4>${list(r.human_verification)}</div>`;
+      <details class="a-more card">
+        <summary>${t('moreDetails')}</summary>
+        <div class="a-section"><h4>${t('reviewAngle')}</h4><div class="exec">${esc(r.review_angle || '')}</div></div>
+        <div class="a-section"><h4>${t('contradictions')}</h4>${list(r.contradictions)}</div>
+        <div class="a-section"><h4>${t('improvements')}</h4>${list(r.improvements)}</div>
+        <div class="a-section"><h4>${t('humanVerify')}</h4>${list(r.human_verification)}</div>
+      </details>
+      <div class="card a-section"><h4>${t('evidence')}</h4>
+        ${(r.evidence || []).map(e => `<div class="item"><div class="grow">${esc(e.point)} <span class="cite">${esc(e.citation || '')}</span></div>${conf(e.confidence)}</div>`).join('') || '—'}
+      </div>`;
   }
 
   function chatPanel() {
@@ -482,11 +526,30 @@
   }
 
   // ---------- admin ----------
+  function adminLogsView() {
+    const logs = S.adminLogs || [];
+    return `
+      <div class="page-head">
+        <h2>${t('activityLog')}</h2>
+        <button class="btn btn-ghost btn-sm" onclick="A.adminShowUsers()">👥 ${t('usersTitle')}</button>
+        <div class="grow"></div>
+      </div>
+      <div class="card" style="overflow-x:auto">
+        <table class="admin">
+          <tr><th>${t('time')}</th><th>${t('user')}</th><th>${t('action')}</th><th>${t('detail')}</th></tr>
+          ${logs.map(l => `<tr><td style="white-space:nowrap">${new Date(l.created_at).toLocaleString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</td><td><strong>${esc(l.username || '')}</strong></td><td><span class="badge mode">${esc(l.action)}</span></td><td style="max-width:420px">${esc(l.detail || '')}</td></tr>`).join('')}
+        </table>
+        ${logs.length === 0 ? `<div class="empty-state">${t('empty')}</div>` : ''}
+      </div>`;
+  }
+
   function adminView() {
+    if ((S.adminTab || 'users') === 'logs') return adminLogsView();
     const users = S.adminUsers || [];
     return `
       <div class="page-head">
         <h2>${t('usersTitle')}</h2>
+        <button class="btn btn-ghost btn-sm" onclick="A.adminShowLogs()">📋 ${t('activityLog')}</button>
         <div class="grow"></div>
         <button class="btn btn-primary" onclick="A.openNewUser()">+ ${t('addUser')}</button>
       </div>
@@ -542,12 +605,15 @@
     document.documentElement.lang = S.lang;
     if (!S.user) { app.innerHTML = loginView(); return; }
     let content = '';
-    if (S.view === 'dashboard') content = dashboardView();
+    if (S.view === 'assistant') content = assistantView();
+    else if (S.view === 'dashboard') content = dashboardView();
     else if (S.view === 'workspace') content = wsView();
     else if (S.view === 'admin') content = adminView();
     app.innerHTML = shell(content) + (S.modal || '');
     const log = $('#chat-log');
     if (log) log.scrollTop = log.scrollHeight;
+    const alog = $('#assist-log');
+    if (alog) alog.scrollTop = alog.scrollHeight;
     bindDropzone();
   }
 
@@ -571,7 +637,7 @@
         if (first) { S.provider = first.id; localStorage.setItem('provider', first.id); }
       }
     },
-    nav(view) { S.view = view; S.modal = ''; if (view === 'dashboard') A.loadDashboard(); else if (view === 'admin') A.loadAdmin(); else render(); },
+    nav(view) { S.view = view; S.modal = ''; if (view === 'assistant') A.loadAssistant(); else if (view === 'dashboard') A.loadDashboard(); else if (view === 'admin') A.loadAdmin(); else render(); },
     closeModal() { S.modal = ''; render(); },
 
     async login(e) {
@@ -583,7 +649,7 @@
         localStorage.setItem('token', data.token);
         const prov = await api('/providers'); S.providers = prov.providers;
         A._normalizeProvider();
-        A.nav('dashboard');
+        A.nav('assistant');
       } catch (err) {
         const el = $('#login-err'); if (el) el.textContent = err.message;
       }
@@ -602,7 +668,7 @@
     async loadDashboard() {
       try {
         const data = await api('/workspaces' + (S.showArchived ? '?archived=1' : ''));
-        S.workspaces = data.workspaces; S.view = 'dashboard'; render();
+        S.workspaces = data.workspaces.filter(w => w.kind !== 'chat'); S.view = 'dashboard'; render();
       } catch (err) { toast(err.message, true); }
     },
     toggleArchived(v) { S.showArchived = v; A.loadDashboard(); },
@@ -825,11 +891,91 @@
       catch (err) { toast(err.message, true); }
     },
 
-    // admin
-    async loadAdmin() {
-      try { S.adminUsers = (await api('/users')).users; S.view = 'admin'; render(); }
+    // assistant (general chat)
+    async loadAssistant() {
+      try {
+        const data = await api('/workspaces');
+        S.chats = data.workspaces.filter(w => w.kind === 'chat');
+        if (S.chatWs && !S.chats.find(c => c.id === S.chatWs.workspace.id)) S.chatWs = null;
+        S.view = 'assistant'; render();
+      } catch (err) { toast(err.message, true); }
+    },
+    newChat() { S.chatWs = null; render(); },
+    async openChat(id) {
+      try { S.chatWs = await api('/workspaces/' + id); render(); }
       catch (err) { toast(err.message, true); }
     },
+    async sendAssist(e) {
+      e.preventDefault();
+      const ta = e.target.q; const q = ta.value.trim(); if (!q) return;
+      S.busy.assist = true;
+      try {
+        if (!S.chatWs) {
+          const data = await api('/workspaces', { method: 'POST', body: JSON.stringify({ title: q.slice(0, 60), kind: 'chat', language: S.lang, mode: 'unguarded' }) });
+          S.chats.unshift(data.workspace);
+          S.chatWs = await api('/workspaces/' + data.workspace.id);
+        }
+        S.chatWs.messages.push({ id: 'tmp', role: 'user', content: q, created_at: new Date().toISOString() });
+        render();
+        const r = await api(`/workspaces/${S.chatWs.workspace.id}/chat`, { method: 'POST', body: JSON.stringify({ question: q, provider: S.provider }) });
+        if (r.fallbackError) toast('Provider failed, demo fallback used', true);
+      } catch (err) { toast(err.message, true); }
+      S.busy.assist = false;
+      if (S.chatWs) S.chatWs = await api('/workspaces/' + S.chatWs.workspace.id);
+      render();
+    },
+    openGenFromChat() {
+      S.modal = `
+      <div class="overlay" onclick="if(event.target===this)A.closeModal()">
+        <form class="modal" onsubmit="A.genFromChat(event)">
+          <h3>${t('fromChatTitle')}</h3>
+          <div class="sub">${t('fromChatHint')}</div>
+          <label class="f">${t('outputType')}</label>
+          <select class="input" name="type">
+            <option value="pptx">PowerPoint</option>
+            <option value="report">Report</option>
+            <option value="memo">Memo</option>
+            <option value="case_summary">Case Summary</option>
+          </select>
+          <div class="help">${t('claudeHint')}</div>
+          <label class="f">${t('extraInstructions')}</label>
+          <textarea class="input" name="instructions" rows="3"></textarea>
+          <div class="actions">
+            <button type="button" class="btn btn-ghost" onclick="A.closeModal()">${t('cancel')}</button>
+            <button class="btn btn-primary">✦ ${t('generate')}</button>
+          </div>
+        </form>
+      </div>`;
+      render();
+    },
+    async genFromChat(e) {
+      e.preventDefault();
+      const f = e.target;
+      const type = f.type.value, instructions = f.instructions.value;
+      S.modal = ''; S.busy.gen = true; render();
+      try {
+        const r = await api(`/workspaces/${S.chatWs.workspace.id}/studio`, {
+          method: 'POST',
+          body: JSON.stringify({ type, format: type === 'pptx' ? 'pptx' : 'md', instructions, scope: 'general', provider: S.provider, preferClaude: true }),
+        });
+        if (r.fallbackError) toast('Provider failed, demo fallback used', true); else toast('✓');
+        S.chatWs = await api('/workspaces/' + S.chatWs.workspace.id);
+        A.downloadChatOutput(r.output.id);
+      } catch (err) { toast(err.message, true); }
+      S.busy.gen = false; render();
+    },
+    downloadChatOutput(id) { A._download(`/api/workspaces/${S.chatWs.workspace.id}/studio/${id}/download`); },
+
+    // admin
+    async loadAdmin() {
+      try { S.adminUsers = (await api('/users')).users; S.adminTab = 'users'; S.view = 'admin'; render(); }
+      catch (err) { toast(err.message, true); }
+    },
+    async adminShowLogs() {
+      try { S.adminLogs = (await api('/users/logs')).logs; S.adminTab = 'logs'; render(); }
+      catch (err) { toast(err.message, true); }
+    },
+    adminShowUsers() { A.loadAdmin(); },
     openNewUser() { S.modal = userModal(null); render(); },
     openEditUser(id) { S.modal = userModal(S.adminUsers.find(u => u.id === id)); render(); },
     async saveUser(e, id) {
@@ -870,7 +1016,7 @@
         S.user = data.user;
         const prov = await api('/providers'); S.providers = prov.providers;
         A._normalizeProvider();
-        A.loadDashboard();
+        A.loadAssistant();
         return;
       } catch { /* fall through to login */ }
     }

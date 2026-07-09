@@ -12,13 +12,14 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { title, brief, language, mode } = req.body || {};
+  const { title, brief, language, mode, kind } = req.body || {};
   if (!title) return res.status(400).json({ error: 'Title required' });
   const now = new Date().toISOString();
   const ws = await store.createWorkspace({
     id: uuid(), owner_id: req.user.id, title: String(title).slice(0, 200),
     brief: brief || '', language: language === 'ar' ? 'ar' : 'en',
     mode: mode === 'unguarded' ? 'unguarded' : 'guarded',
+    kind: kind === 'chat' ? 'chat' : 'analysis',
     status: 'active', created_at: now, updated_at: now,
   });
   res.status(201).json({ workspace: ws });

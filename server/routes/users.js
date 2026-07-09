@@ -11,6 +11,12 @@ const strip = u => { const { password_hash, ...rest } = u; return rest; };
 
 router.get('/', async (req, res) => res.json({ users: (await store.listUsers()).map(strip) }));
 
+// Admin activity log — recent actions across all users
+router.get('/logs', async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '300', 10) || 300, 1000);
+  res.json({ logs: await store.listLogs(limit) });
+});
+
 router.post('/', async (req, res) => {
   const { username, password, fullName, email, department, role } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'Username and password required' });

@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
   brief TEXT DEFAULT '',
   language TEXT NOT NULL DEFAULT 'en', -- en | ar
   mode TEXT NOT NULL DEFAULT 'guarded', -- guarded | unguarded
+  kind TEXT NOT NULL DEFAULT 'analysis', -- analysis | chat
   status TEXT NOT NULL DEFAULT 'active', -- active | archived
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -75,6 +76,19 @@ CREATE TABLE IF NOT EXISTS notes (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'analysis';
+
+CREATE TABLE IF NOT EXISTS logs (
+  id UUID PRIMARY KEY,
+  user_id UUID,
+  username TEXT DEFAULT '',
+  action TEXT NOT NULL,
+  workspace_id UUID,
+  detail TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_logs_time ON logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_ws_owner ON workspaces(owner_id);
 CREATE INDEX IF NOT EXISTS idx_files_ws ON files(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_msgs_ws ON messages(workspace_id);

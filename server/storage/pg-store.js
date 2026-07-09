@@ -40,9 +40,9 @@ class PgStore {
   // Workspaces
   async createWorkspace(w) {
     await this.q(
-      `INSERT INTO workspaces (id, owner_id, title, brief, language, mode, status, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [w.id, w.owner_id, w.title, w.brief, w.language, w.mode, w.status, w.created_at, w.updated_at]);
+      `INSERT INTO workspaces (id, owner_id, title, brief, language, mode, kind, status, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [w.id, w.owner_id, w.title, w.brief, w.language, w.mode, w.kind || 'analysis', w.status, w.created_at, w.updated_at]);
     return w;
   }
   async listWorkspaces(ownerId, includeArchived) {
@@ -112,6 +112,15 @@ class PgStore {
   }
   async listNotes(wsId) { return this.q('SELECT * FROM notes WHERE workspace_id=$1 ORDER BY created_at DESC', [wsId]); }
   async deleteNote(id) { await this.q('DELETE FROM notes WHERE id=$1', [id]); }
+
+  // Activity logs
+  async addLog(l) {
+    await this.q(
+      `INSERT INTO logs (id, user_id, username, action, workspace_id, detail, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [l.id, l.user_id, l.username, l.action, l.workspace_id || null, l.detail, l.created_at]);
+    return l;
+  }
+  async listLogs(limit = 300) { return this.q('SELECT * FROM logs ORDER BY created_at DESC LIMIT $1', [limit]); }
 }
 
 module.exports = PgStore;

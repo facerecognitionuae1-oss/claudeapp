@@ -6,6 +6,12 @@ const ai = require('../services/ai');
 const { baseContext, chatSystem, detectLang } = require('../services/prompts');
 
 const router = express.Router({ mergeParams: true });
+
+const logAction = (user, action, wsId, detail) => {
+  try {
+    store.addLog({ id: require('uuid').v4(), user_id: user.id, username: user.username, action, workspace_id: wsId || null, detail: String(detail || '').slice(0, 400), created_at: new Date().toISOString() });
+  } catch {}
+};
 router.use(requireAuth);
 
 // POST /api/workspaces/:wsId/chat  { question, provider?, model?, mode?, language? }
@@ -41,6 +47,7 @@ ${question.trim()}`;
     provider: out.provider, model: out.model, mode, created_at: new Date().toISOString(),
   });
   await store.updateWorkspace(ws.id, {});
+  logAction(req.user, 'question', ws.id, question.trim());
   res.status(201).json({ question: userMsg, answer, fallbackError: out.fallbackError });
 });
 

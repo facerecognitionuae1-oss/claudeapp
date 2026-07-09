@@ -10,10 +10,10 @@ class JsonStore {
       try { this.db = JSON.parse(fs.readFileSync(dataFile, 'utf8')); }
       catch { this.db = this._empty(); }
     } else this.db = this._empty();
-    for (const k of ['users','workspaces','files','analyses','messages','outputs','notes'])
+    for (const k of ['users','workspaces','files','analyses','messages','outputs','notes','logs'])
       if (!Array.isArray(this.db[k])) this.db[k] = [];
   }
-  _empty() { return { users: [], workspaces: [], files: [], analyses: [], messages: [], outputs: [], notes: [] }; }
+  _empty() { return { users: [], workspaces: [], files: [], analyses: [], messages: [], outputs: [], notes: [], logs: [] }; }
   _save() { fs.writeFileSync(this.file, JSON.stringify(this.db, null, 2)); }
   async init() {}
 
@@ -91,6 +91,12 @@ class JsonStore {
       .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
   }
   async deleteNote(id) { this.db.notes = this.db.notes.filter(n => n.id !== id); this._save(); }
+
+  // Activity logs
+  async addLog(l) { this.db.logs.push(l); if (this.db.logs.length > 5000) this.db.logs = this.db.logs.slice(-4000); this._save(); return l; }
+  async listLogs(limit = 300) {
+    return [...this.db.logs].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '')).slice(0, limit);
+  }
 }
 
 module.exports = JsonStore;

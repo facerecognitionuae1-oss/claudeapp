@@ -9,6 +9,12 @@ const { baseContext, studioSystem, pptxSystem, STUDIO_TYPES, detectLang } = requ
 const { buildDeck } = require('../services/pptx');
 
 const router = express.Router({ mergeParams: true });
+
+const logAction = (user, action, wsId, detail) => {
+  try {
+    store.addLog({ id: require('uuid').v4(), user_id: user.id, username: user.username, action, workspace_id: wsId || null, detail: String(detail || '').slice(0, 400), created_at: new Date().toISOString() });
+  } catch {}
+};
 router.use(requireAuth);
 
 router.get('/types', (req, res) => {
@@ -25,16 +31,26 @@ router.post('/', requireWorkspace, async (req, res) => {
   const focused = req.body?.scope === 'focused' && !!instructions;
   const format = req.body?.format || (type === 'pptx' ? 'pptx' : 'md');
   // Instructions language wins; otherwise workspace language.
-  const language = req.body?.language || detectLang(instructions) || ws.language;
   const mode = req.body?.mode || ws.mode;
   const files = await store.listFiles(ws.id);
   const hasFiles = files.length > 0;
-  const context = baseContext(ws, files) + (instructions
-    ? `\n\nEMPLOYEE ADDITIONAL INSTRUCTIONS (HIGHEST PRIORITY — follow exactly, respond in their language):\n${instructions}`
-    : '');
+  // Q&A transcript is source material too — lets users build decks/documents from a conversation.
+  const messages = await store.listMessages(ws.id);
+  const convo = messages.slice(-40).map(m => `${m.role === 'user' ? 'EMPLOYEE' : 'ASSISTANT'}: ${m.content}`).join('\n\n');
+  const lastUser = [...messages].reverse().find(m => m.role === 'user');
+  const context = baseContext(ws, files)
+    + (convo ? `\n\nCONVERSATION TRANSCRIPT (treat as source material — capture its key questions, answers and conclusions):\n${convo}` : '')
+    + (instructions
+      ? `\n\nEMPLOYEE ADDITIONAL INSTRUCTIONS (HIGHEST PRIORITY — follow exactly, respond in their language):\n${instructions}`
+      : '');
+
+  const language = req.body?.language || detectLang(instructions) || (lastUser ? detectLang(lastUser.content) : null) || ws.language;
+  // Claude is recommended for slide structure: prefer it for decks when configured.
+  const cfg = require('../config');
+  const useProvider = (type === 'pptx' && req.body?.preferClaude && cfg.providers.anthropic.key) ? 'anthropic' : provider;
 
   if (type === 'pptx') {
-    const out = await ai.chat({ provider, model, system: pptxSystem(language, focused, hasFiles), user: context + '\n\nDesign the briefing deck now.' });
+    const out = await ai.chat({ provider: useProvider, model, system: pptxSystem(language, focused, hasFiles), user: context + '\n\nDesign the briefing deck now.' });
     const spec = ai.parseJson(out.text);
     if (!spec || !Array.isArray(spec.slides))
       return res.status(502).json({ error: 'Model returned an invalid deck specification', raw: out.text.slice(0, 1500) });
@@ -45,12 +61,13 @@ router.post('/', requireWorkspace, async (req, res) => {
       title: spec.title || 'Briefing Deck', file_name: fileName,
       content: JSON.stringify(spec), provider: out.provider, created_at: new Date().toISOString(),
     });
+    logAction(req.user, 'generate', ws.id, `pptx · ${spec.title || ''}`);
     return res.status(201).json({ output, fallbackError: out.fallbackError });
   }
 
   const t = STUDIO_TYPES[type];
   if (!t) return res.status(400).json({ error: 'Unknown output type' });
-  const out = await ai.chat({ provider, model, system: studioSystem(type, mode, language, focused, hasFiles), user: context + '\n\nGenerate the document now.' });
+  const out = await ai.chat({ provider: useProvider || provider, model, system: studioSystem(type, mode, language, focused, hasFiles), user: context + '\n\nGenerate the document now.' });
 
   let content = out.text;
   if (format === 'json') content = JSON.stringify({ type, title: t.title, generated_at: new Date().toISOString(), body_markdown: out.text }, null, 2);
@@ -59,6 +76,7 @@ router.post('/', requireWorkspace, async (req, res) => {
     title: t.title, file_name: '', content,
     provider: out.provider, created_at: new Date().toISOString(),
   });
+  logAction(req.user, 'generate', ws.id, `${type} · ${format}`);
   res.status(201).json({ output, fallbackError: out.fallbackError });
 });
 
