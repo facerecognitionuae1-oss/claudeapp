@@ -28,6 +28,8 @@ Set any of these in `.env`; users pick the model per question/task from the top 
 
 If a provider call fails, the system falls back to the demo responder and tells the user.
 
+AI images in slide decks use the same `OPENAI_API_KEY`. Set optional `IMAGE_MODEL=gpt-image-1` to choose the image model; if omitted, the app defaults to `gpt-image-1` and falls back to `dall-e-3`.
+
 ## AI modes
 
 - **Guarded** — evidence-first: claims only from uploaded material, heavy citations `[doc: filename, near: "…"]`, HIGH/MEDIUM/LOW confidence labels, gaps stated explicitly.
