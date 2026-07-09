@@ -23,6 +23,10 @@ module.exports = {
   generatedDir: resolveRuntimePath(process.env.GENERATED_DIR, path.join(persistentDir, 'generated')),
   dataFile: resolveRuntimePath(process.env.DATA_FILE, path.join(persistentDir, 'db.json')),
   maxUploadMb: parseInt(process.env.MAX_UPLOAD_MB || '25', 10),
+  search: {
+    tavily: process.env.TAVILY_API_KEY || '',
+    brave: process.env.BRAVE_API_KEY || '',
+  },
   providers: {
     openai: {
       key: process.env.OPENAI_API_KEY || '',

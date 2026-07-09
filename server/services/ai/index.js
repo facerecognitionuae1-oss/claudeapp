@@ -26,7 +26,7 @@ async function callAnthropic(system, user, model) {
     },
     body: JSON.stringify({
       model: model || config.providers.anthropic.model,
-      max_tokens: 8000,
+      max_tokens: 16000,
       system,
       messages: [{ role: 'user', content: user }],
     }),

@@ -38,7 +38,17 @@ router.post('/', requireWorkspace, async (req, res) => {
   const messages = await store.listMessages(ws.id);
   const convo = messages.slice(-40).map(m => `${m.role === 'user' ? 'EMPLOYEE' : 'ASSISTANT'}: ${m.content}`).join('\n\n');
   const lastUser = [...messages].reverse().find(m => m.role === 'user');
-  const context = baseContext(ws, files)
+  // Live web search runs automatically whenever a search key is configured.
+  let webBlock = '';
+  {
+    const { webSearch, formatSearch, searchConfigured } = require('../services/search');
+    if (searchConfigured()) {
+      const q = (instructions || ws.brief || ws.title || '').trim().slice(0, 300);
+      const found = await webSearch(q);
+      webBlock = formatSearch(found, q);
+    }
+  }
+  const context = baseContext(ws, files) + webBlock
     + (convo ? `\n\nCONVERSATION TRANSCRIPT (treat as source material — capture its key questions, answers and conclusions):\n${convo}` : '')
     + (instructions
       ? `\n\nEMPLOYEE ADDITIONAL INSTRUCTIONS (HIGHEST PRIORITY — follow exactly, respond in their language):\n${instructions}`
@@ -47,7 +57,8 @@ router.post('/', requireWorkspace, async (req, res) => {
   const language = req.body?.language || detectLang(instructions) || (lastUser ? detectLang(lastUser.content) : null) || ws.language;
   // Claude is recommended for slide structure: prefer it for decks when configured.
   const cfg = require('../config');
-  const useProvider = (type === 'pptx' && req.body?.preferClaude && cfg.providers.anthropic.key) ? 'anthropic' : provider;
+  // Presentations & infographics need the strongest design model: always use Claude when configured.
+  const useProvider = ((type === 'pptx' || type === 'infographic') && cfg.providers.anthropic.key) ? 'anthropic' : provider;
 
   if (type === 'pptx') {
     const out = await ai.chat({ provider: useProvider, model, system: pptxSystem(language, focused, hasFiles), user: context + '\n\nDesign the briefing deck now.' });
@@ -59,7 +70,8 @@ router.post('/', requireWorkspace, async (req, res) => {
     const images = {};
     if (req.body?.withImages && cfg.providers.openai.key) {
       const { generateImage } = require('../services/images');
-      const styleSuffix = spec.theme?.image_style ? ` Style: ${spec.theme.image_style}.` : '';
+      const styleSuffix = (spec.theme?.image_style ? ` Style: ${spec.theme.image_style}.` : '')
+        + ' Ultra-detailed, premium editorial quality, cinematic lighting, professional composition, high-end 3D render aesthetic.';
       const jobs = [];
       if (spec.image) jobs.push(['cover', spec.image]);
       (spec.slides || []).forEach((sl2, i2) => { if (sl2.image && jobs.length < 4) jobs.push(['s' + i2, sl2.image]); });

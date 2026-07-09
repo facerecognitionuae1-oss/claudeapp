@@ -9,7 +9,8 @@ async function generateImage(prompt) {
   for (const model of models) {
     try {
       const body = { model, prompt: String(prompt).slice(0, 3500), n: 1, size: model === 'dall-e-3' ? '1792x1024' : '1536x1024' };
-      if (model === 'dall-e-3') { body.response_format = 'b64_json'; body.quality = 'standard'; }
+      if (model === 'dall-e-3') { body.response_format = 'b64_json'; body.quality = 'hd'; body.style = 'vivid'; }
+      else body.quality = 'high';
       const res = await fetch('https://api.openai.com/v1/images/generations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },

@@ -26,8 +26,18 @@ router.post('/', requireWorkspace, async (req, res) => {
   const language = req.body?.language
     || (files.length ? ws.language : (detectLang(ws.brief) || ws.language));
 
+  // Live web search runs automatically whenever a search key is configured.
+  let webBlock = '';
+  {
+    const { webSearch, formatSearch, searchConfigured } = require('../services/search');
+    if (searchConfigured()) {
+      const q = (ws.brief || '').trim().slice(0, 300) || ws.title;
+      const found = await webSearch(q);
+      webBlock = formatSearch(found, q);
+    }
+  }
   const system = analysisSystem(mode, language, files.length > 0);
-  const user = baseContext(ws, files) + '\n\nRun the full structured review now.';
+  const user = baseContext(ws, files) + webBlock + '\n\nRun the full structured review now.';
   const out = await ai.chat({ provider, model, system, user });
   const result = ai.parseJson(out.text);
   if (!result) return res.status(502).json({ error: 'Model returned unparseable output', raw: out.text.slice(0, 2000) });

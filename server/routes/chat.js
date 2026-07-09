@@ -32,8 +32,17 @@ router.post('/', requireWorkspace, async (req, res) => {
     provider: '', model: '', mode, created_at: new Date().toISOString(),
   });
 
+  // Live web search runs automatically whenever a search key is configured.
+  let webBlock = '';
+  {
+    const { webSearch, formatSearch, searchConfigured } = require('../services/search');
+    if (searchConfigured()) {
+      const found = await webSearch(question.trim());
+      webBlock = formatSearch(found, question.trim());
+    }
+  }
   const system = chatSystem(mode, language, files.length > 0);
-  const user = `${baseContext(ws, files)}
+  const user = `${baseContext(ws, files)}${webBlock}
 
 RECENT CONVERSATION:
 ${historyText || '(none)'}
@@ -47,7 +56,7 @@ ${question.trim()}`;
     provider: out.provider, model: out.model, mode, created_at: new Date().toISOString(),
   });
   await store.updateWorkspace(ws.id, {});
-  logAction(req.user, 'question', ws.id, question.trim());
+  logAction(req.user, 'question', ws.id, (webBlock ? '[web] ' : '') + question.trim());
   res.status(201).json({ question: userMsg, answer, fallbackError: out.fallbackError });
 });
 

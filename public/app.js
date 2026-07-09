@@ -20,6 +20,8 @@
     chatWs: null,
     studioWs: null,
     studioDraft: '',
+    web: localStorage.getItem('web') === '1',
+    searchAvailable: false,
   };
 
   const t = k => (I18N[S.lang] && I18N[S.lang][k]) || I18N.en[k] || k;
@@ -706,7 +708,8 @@
         const data = await api('/auth/login', { method: 'POST', body: JSON.stringify({ username: f.username.value, password: f.password.value }) });
         S.token = data.token; S.user = data.user;
         localStorage.setItem('token', data.token);
-        const prov = await api('/providers'); S.providers = prov.providers;
+        const prov = await api('/providers'); S.providers = prov.providers; S.searchAvailable = !!prov.search;
+        if (S.web && !S.searchAvailable) S.web = false;
         A._normalizeProvider();
         A.nav('assistant');
       } catch (err) {
@@ -779,7 +782,7 @@
           // instantly run the analysis so the user lands on results
           S.tab = 'analysis'; S.busy.analysis = true; render();
           try {
-            const r = await api(`/workspaces/${wsId}/analysis`, { method: 'POST', body: JSON.stringify({ provider: S.provider }) });
+            const r = await api(`/workspaces/${wsId}/analysis`, { method: 'POST', body: JSON.stringify({ provider: S.provider, web: S.web }) });
             if (r.fallbackError) toast('Provider failed, demo fallback used: ' + r.fallbackError, true);
           } catch (err) { toast(err.message, true); }
           S.busy.analysis = false;
@@ -837,7 +840,7 @@
     async runAnalysis() {
       S.busy.analysis = true; render();
       try {
-        const r = await api(`/workspaces/${S.ws.workspace.id}/analysis`, { method: 'POST', body: JSON.stringify({ provider: S.provider }) });
+        const r = await api(`/workspaces/${S.ws.workspace.id}/analysis`, { method: 'POST', body: JSON.stringify({ provider: S.provider, web: S.web }) });
         if (r.fallbackError) toast('Provider failed, demo fallback used: ' + r.fallbackError, true);
         await A.refreshWs();
       } catch (err) { toast(err.message, true); }
@@ -855,7 +858,7 @@
       S.ws.messages.push({ id: 'tmp', role: 'user', content: q, created_at: new Date().toISOString() });
       S.busy.chat = true; render();
       try {
-        const r = await api(`/workspaces/${S.ws.workspace.id}/chat`, { method: 'POST', body: JSON.stringify({ question: q, provider: S.provider }) });
+        const r = await api(`/workspaces/${S.ws.workspace.id}/chat`, { method: 'POST', body: JSON.stringify({ question: q, provider: S.provider, web: S.web }) });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true);
       } catch (err) { toast(err.message, true); }
       S.busy.chat = false;
@@ -869,7 +872,7 @@
       try {
         const r = await api(`/workspaces/${S.ws.workspace.id}/studio`, {
           method: 'POST',
-          body: JSON.stringify({ type: f.type.value, format: f.format.disabled ? 'pptx' : f.format.value, instructions: f.instructions.value, scope: f.scope.value, provider: S.provider, withImages: f.withImages ? f.withImages.checked : false }),
+          body: JSON.stringify({ type: f.type.value, format: f.format.disabled ? 'pptx' : f.format.value, instructions: f.instructions.value, scope: f.scope.value, provider: S.provider, web: S.web, withImages: f.withImages ? f.withImages.checked : false }),
         });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true);
         else toast('✓');
@@ -974,7 +977,7 @@
         }
         const r = await api(`/workspaces/${S.studioWs.workspace.id}/studio`, {
           method: 'POST',
-          body: JSON.stringify({ type, format, instructions: text, scope: 'focused', provider: S.provider, preferClaude: true, withImages: f.withImages ? f.withImages.checked : false }),
+          body: JSON.stringify({ type, format, instructions: text, scope: 'focused', provider: S.provider, preferClaude: true, web: S.web, withImages: f.withImages ? f.withImages.checked : false }),
         });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true); else toast('✓');
         S.studioWs = await api('/workspaces/' + S.studioWs.workspace.id);
@@ -1010,7 +1013,7 @@
         }
         S.chatWs.messages.push({ id: 'tmp', role: 'user', content: q, created_at: new Date().toISOString() });
         render();
-        const r = await api(`/workspaces/${S.chatWs.workspace.id}/chat`, { method: 'POST', body: JSON.stringify({ question: q, provider: S.provider }) });
+        const r = await api(`/workspaces/${S.chatWs.workspace.id}/chat`, { method: 'POST', body: JSON.stringify({ question: q, provider: S.provider, web: S.web }) });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true);
       } catch (err) { toast(err.message, true); }
       S.busy.assist = false;
@@ -1051,7 +1054,7 @@
       try {
         const r = await api(`/workspaces/${S.chatWs.workspace.id}/studio`, {
           method: 'POST',
-          body: JSON.stringify({ type, format: type === 'pptx' ? 'pptx' : type === 'infographic' ? 'svg' : 'md', instructions, scope: 'general', provider: S.provider, preferClaude: true, withImages: f.withImages ? f.withImages.checked : false }),
+          body: JSON.stringify({ type, format: type === 'pptx' ? 'pptx' : type === 'infographic' ? 'svg' : 'md', instructions, scope: 'general', provider: S.provider, preferClaude: true, web: S.web, withImages: f.withImages ? f.withImages.checked : false }),
         });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true); else toast('✓');
         S.chatWs = await api('/workspaces/' + S.chatWs.workspace.id);
@@ -1110,7 +1113,8 @@
       try {
         const data = await api('/auth/me');
         S.user = data.user;
-        const prov = await api('/providers'); S.providers = prov.providers;
+        const prov = await api('/providers'); S.providers = prov.providers; S.searchAvailable = !!prov.search;
+        if (S.web && !S.searchAvailable) S.web = false;
         A._normalizeProvider();
         A.loadAssistant();
         return;

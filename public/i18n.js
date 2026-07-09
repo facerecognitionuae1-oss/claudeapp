@@ -75,6 +75,9 @@ window.I18N = {
     yourText: 'Your text / points',
     historyTitle: 'Your generated files',
     withImages: 'Add AI-generated images (PowerPoint only — runs only when checked, uses OpenAI credits)',
+    webSearch: 'Live web search — when ON, answers, analyses and generated files use fresh results from the internet',
+    webOn: 'Web ON', webOff: 'Web',
+    webNotConfigured: 'Web search is not configured. Set TAVILY_API_KEY (or BRAVE_API_KEY) in .env and restart.',
   },
   ar: {
     appName: 'مساحة عمل الذكاء الاصطناعي لموظفي الهيئة',
@@ -151,5 +154,8 @@ window.I18N = {
     yourText: 'نصك / نقاطك',
     historyTitle: 'ملفاتك المُنشأة',
     withImages: 'إضافة صور مولّدة بالذكاء الاصطناعي (للعروض فقط — يعمل فقط عند التحديد، ويستهلك رصيد OpenAI)',
+    webSearch: 'البحث المباشر في الويب — عند التفعيل تستخدم الإجابات والتحليلات والملفات المُنشأة نتائج حديثة من الإنترنت',
+    webOn: 'الويب مفعّل', webOff: 'الويب',
+    webNotConfigured: 'البحث في الويب غير مهيأ. أضف TAVILY_API_KEY (أو BRAVE_API_KEY) في .env وأعد التشغيل.',
   },
 };

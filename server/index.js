@@ -14,7 +14,7 @@ app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.get('/api/health', (req, res) => res.json({ ok: true, storage: config.databaseUrl ? 'postgres' : 'json' }));
-app.get('/api/providers', requireAuth, (req, res) => res.json({ providers: ai.listProviders() }));
+app.get('/api/providers', requireAuth, (req, res) => res.json({ providers: ai.listProviders(), search: require('./services/search').searchConfigured() }));
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
