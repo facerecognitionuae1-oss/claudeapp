@@ -5,7 +5,6 @@ const { Pool } = require('pg');
 
 class PgStore {
   constructor(cfg) {
-    this.supportsBinaryStorage = true;
     this.pool = new Pool({
       connectionString: cfg.databaseUrl,
       ssl: cfg.pgSsl ? { rejectUnauthorized: false } : false,
@@ -64,18 +63,14 @@ class PgStore {
   // Files
   async addFile(f) {
     await this.q(
-      `INSERT INTO files (id, workspace_id, original_name, stored_name, mime_type, size_bytes, extracted_text, file_data, uploaded_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [f.id, f.workspace_id, f.original_name, f.stored_name, f.mime_type, f.size_bytes, f.extracted_text, f.file_data || null, f.uploaded_at]);
+      `INSERT INTO files (id, workspace_id, original_name, stored_name, mime_type, size_bytes, extracted_text, content, file_data, uploaded_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [f.id, f.workspace_id, f.original_name, f.stored_name, f.mime_type, f.size_bytes, f.extracted_text, f.content || null, f.content || null, f.uploaded_at]);
     return f;
   }
-  async listFiles(wsId) {
-    return this.q(
-      `SELECT id, workspace_id, original_name, stored_name, mime_type, size_bytes, extracted_text, uploaded_at
-       FROM files WHERE workspace_id=$1 ORDER BY uploaded_at`,
-      [wsId]);
-  }
-  async getFile(id) { return (await this.q('SELECT * FROM files WHERE id=$1', [id]))[0] || null; }
+  async listFiles(wsId) { return this.q('SELECT id, workspace_id, original_name, stored_name, mime_type, size_bytes, extracted_text, uploaded_at FROM files WHERE workspace_id=$1 ORDER BY uploaded_at', [wsId]); }
+  async getFile(id) { return (await this.q('SELECT id, workspace_id, original_name, stored_name, mime_type, size_bytes, uploaded_at FROM files WHERE id=$1', [id]))[0] || null; }
+  async getFileContent(id) { const r = (await this.q('SELECT COALESCE(content, file_data) AS content FROM files WHERE id=$1', [id]))[0]; return r ? r.content : null; }
   async deleteFile(id) { await this.q('DELETE FROM files WHERE id=$1', [id]); }
 
   // Analyses
@@ -106,13 +101,9 @@ class PgStore {
       [o.id, o.workspace_id, o.type, o.format, o.title, o.file_name, o.content, o.file_data || null, o.provider, o.created_at]);
     return o;
   }
-  async listOutputs(wsId) {
-    return this.q(
-      `SELECT id, workspace_id, type, format, title, file_name, content, provider, created_at
-       FROM outputs WHERE workspace_id=$1 ORDER BY created_at DESC`,
-      [wsId]);
-  }
-  async getOutput(id) { return (await this.q('SELECT * FROM outputs WHERE id=$1', [id]))[0] || null; }
+  async listOutputs(wsId) { return this.q('SELECT id, workspace_id, type, format, title, file_name, content, provider, created_at FROM outputs WHERE workspace_id=$1 ORDER BY created_at DESC', [wsId]); }
+  async getOutput(id) { return (await this.q('SELECT id, workspace_id, type, format, title, file_name, content, provider, created_at FROM outputs WHERE id=$1', [id]))[0] || null; }
+  async getOutputFile(id) { const r = (await this.q('SELECT file_data FROM outputs WHERE id=$1', [id]))[0]; return r ? r.file_data : null; }
 
   // Notes
   async addNote(n) {
@@ -132,6 +123,20 @@ class PgStore {
     return l;
   }
   async listLogs(limit = 300) { return this.q('SELECT * FROM logs ORDER BY created_at DESC LIMIT $1', [limit]); }
+
+  // Full backup (binary file contents excluded to keep the export light)
+  async dump() {
+    const out = { exported_at: new Date().toISOString(), storage: 'postgres' };
+    out.users = await this.q('SELECT * FROM users');
+    out.workspaces = await this.q('SELECT * FROM workspaces');
+    out.files = await this.q('SELECT id, workspace_id, original_name, stored_name, mime_type, size_bytes, uploaded_at FROM files');
+    out.analyses = await this.q('SELECT * FROM analyses');
+    out.messages = await this.q('SELECT * FROM messages');
+    out.outputs = await this.q('SELECT id, workspace_id, type, format, title, file_name, content, provider, created_at FROM outputs');
+    out.notes = await this.q('SELECT * FROM notes');
+    out.logs = await this.q('SELECT * FROM logs');
+    return out;
+  }
 }
 
 module.exports = PgStore;

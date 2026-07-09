@@ -70,6 +70,19 @@ GET  /api/workspaces/:wsId/studio/:id/download
 
 Studio types: `pptx`, `memo`, `checklist`, `case_summary`, `policy_comparison`, `legal_review`, `revised_draft`, `report`. Formats: `md`, `txt`, `json`, `pptx`.
 
+## Keeping data across redeploys (IMPORTANT)
+
+All application data — users, chats, workspaces, messages, analyses, generated files, uploaded file contents, review notes and activity logs — persists in **PostgreSQL** when `DATABASE_URL` is set. Uploaded and generated files are stored **inside the database** (BYTEA), so redeploying the app folder never loses anyone's work.
+
+1. Create a PostgreSQL database in the Hostinger panel (or any provider, e.g. Neon/Supabase free tier).
+2. Set `DATABASE_URL=postgres://user:password@host:5432/dbname` (and `PGSSL=true` if the host requires SSL) in the server's environment.
+3. Restart the app — tables are created/migrated automatically on boot (idempotent).
+4. Redeploy freely: replace the entire app folder whenever you want; the database keeps everything.
+
+Without `DATABASE_URL`, data lives in `data/db.json` + `data/uploads/` + `generated/` — fine locally, but on a host you must preserve those folders between deploys. Use PostgreSQL in production.
+
+**Backup:** Admin → Users → "Download backup" exports a full JSON snapshot (all tables; binary file bytes excluded). You can also point pgAdmin/TablePlus/DBeaver at the same DATABASE_URL, or schedule `pg_dump`.
+
 ## Deployment (Hostinger / any Node host)
 
 1. Node 18+ required (uses built-in `fetch`).

@@ -4,7 +4,6 @@ const path = require('path');
 
 class JsonStore {
   constructor(dataFile) {
-    this.supportsBinaryStorage = false;
     this.file = dataFile;
     fs.mkdirSync(path.dirname(dataFile), { recursive: true });
     if (fs.existsSync(dataFile)) {
@@ -57,8 +56,9 @@ class JsonStore {
       this.db[k] = this.db[k].filter(r => !s.has(r.workspace_id));
   }
 
-  // Files
-  async addFile(f) { this.db.files.push(f); this._save(); return f; }
+  // Files (binary content is not kept in db.json — disk copies serve local mode)
+  async addFile(f) { const { content, ...rest } = f; this.db.files.push(rest); this._save(); return rest; }
+  async getFileContent(id) { return null; }
   async listFiles(wsId) { return this.db.files.filter(f => f.workspace_id === wsId); }
   async getFile(id) { return this.db.files.find(f => f.id === id) || null; }
   async deleteFile(id) { this.db.files = this.db.files.filter(f => f.id !== id); this._save(); }
@@ -78,7 +78,8 @@ class JsonStore {
   }
 
   // Outputs
-  async addOutput(o) { this.db.outputs.push(o); this._save(); return o; }
+  async addOutput(o) { const { file_data, ...rest } = o; this.db.outputs.push(rest); this._save(); return rest; }
+  async getOutputFile(id) { return null; }
   async listOutputs(wsId) {
     return this.db.outputs.filter(o => o.workspace_id === wsId)
       .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
@@ -95,6 +96,7 @@ class JsonStore {
 
   // Activity logs
   async addLog(l) { this.db.logs.push(l); if (this.db.logs.length > 5000) this.db.logs = this.db.logs.slice(-4000); this._save(); return l; }
+  async dump() { return { exported_at: new Date().toISOString(), storage: 'json', ...this.db }; }
   async listLogs(limit = 300) {
     return [...this.db.logs].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '')).slice(0, limit);
   }

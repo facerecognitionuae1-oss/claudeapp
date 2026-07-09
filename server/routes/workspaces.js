@@ -19,7 +19,7 @@ router.post('/', async (req, res) => {
     id: uuid(), owner_id: req.user.id, title: String(title).slice(0, 200),
     brief: brief || '', language: language === 'ar' ? 'ar' : 'en',
     mode: mode === 'unguarded' ? 'unguarded' : 'guarded',
-    kind: kind === 'chat' ? 'chat' : 'analysis',
+    kind: kind === 'chat' ? 'chat' : kind === 'studio' ? 'studio' : 'analysis',
     status: 'active', created_at: now, updated_at: now,
   });
   res.status(201).json({ workspace: ws });
@@ -33,10 +33,8 @@ router.get('/:id', requireWorkspace, async (req, res) => {
   ]);
   res.json({
     workspace: ws,
-    files: files.map(({ extracted_text, file_data, ...f }) => ({ ...f, has_text: !!(extracted_text || '').trim() })),
-    analyses, messages,
-    outputs: outputs.map(({ file_data, ...o }) => o),
-    notes,
+    files: files.map(({ extracted_text, ...f }) => ({ ...f, has_text: !!(extracted_text || '').trim() })),
+    analyses, messages, outputs, notes,
   });
 });
 

@@ -18,6 +18,8 @@
     createStep: '',
     chats: [],
     chatWs: null,
+    studioWs: null,
+    studioDraft: '',
   };
 
   const t = k => (I18N[S.lang] && I18N[S.lang][k]) || I18N.en[k] || k;
@@ -138,14 +140,19 @@
           ${S.providers.map(p => `<option value="${p.id}" ${p.id === S.provider ? 'selected' : ''}>${esc(p.label)}${p.configured ? '' : ' ⚠'}</option>`).join('')}
         </select>
         ${langSelect('')}
-        <button class="btn btn-ghost btn-sm" onclick="A.nav('assistant')">💬 ${t('assistant')}</button>
-        <button class="btn btn-ghost btn-sm" onclick="A.nav('dashboard')">${t('analysisTool')}</button>
-        ${u.role === 'admin' ? `<button class="btn btn-ghost btn-sm" onclick="A.nav('admin')">${t('admin')}</button>` : ''}
         <span class="user">${esc(u.full_name || u.username)}</span>
         <button class="btn btn-ghost btn-sm" title="${t('changePassword')}" onclick="A.openChangePw()">🔑</button>
         <button class="btn btn-primary btn-sm" onclick="A.logout()">${t('logout')}</button>
       </div>
-      <div class="main">${content}</div>
+      <div class="layout">
+        <nav class="sidebar">
+          <button class="side-item ${S.view === 'assistant' ? 'active' : ''}" onclick="A.nav('assistant')">🏠 ${t('assistant')}</button>
+          <button class="side-item ${S.view === 'studio' ? 'active' : ''}" onclick="A.nav('studio')">✦ ${t('studio')}</button>
+          <button class="side-item ${S.view === 'dashboard' || S.view === 'workspace' ? 'active' : ''}" onclick="A.nav('dashboard')">📁 ${t('analysisTool')}</button>
+          ${u.role === 'admin' ? `<button class="side-item ${S.view === 'admin' ? 'active' : ''}" onclick="A.nav('admin')">⚙️ ${t('admin')}</button>` : ''}
+        </nav>
+        <div class="content"><div class="main">${content}</div></div>
+      </div>
     </div>`;
   }
 
@@ -183,6 +190,53 @@
               onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.requestSubmit();}"></textarea>
             <button class="btn btn-primary" ${busy ? 'disabled' : ''}>${t('send')}</button>
           </form>
+        </div>
+      </div>`;
+  }
+
+  function studioHomeView() {
+    const busy = S.busy.studioHome;
+    const outputs = S.studioWs ? S.studioWs.outputs : [];
+    return `
+      <div class="page-head"><h2>✦ ${t('studioHomeTitle')}</h2></div>
+      <div class="studio-home">
+        <form class="card" style="padding:22px" onsubmit="A.genStudio(event)">
+          <div class="help" style="margin:0 0 12px">${t('studioHomeHint')}</div>
+          <label class="f" style="margin-top:0">${t('yourText')}</label>
+          <textarea class="input" name="text" rows="9" required placeholder="${t('briefPh')}">${esc(S.studioDraft || '')}</textarea>
+          <label class="f">${t('outputType')}</label>
+          <select class="input" name="type" onchange="this.form.format.disabled=(this.value==='pptx')">
+            <option value="pptx">PowerPoint</option>
+            <option value="memo">Internal Memo</option>
+            <option value="report">Report</option>
+            <option value="checklist">Checklist</option>
+            <option value="case_summary">Case Summary</option>
+            <option value="policy_comparison">Policy Comparison</option>
+            <option value="legal_review">Legal / Compliance Review</option>
+            <option value="revised_draft">Revised Draft</option>
+          </select>
+          <label class="f">${t('format')}</label>
+          <select class="input" name="format" disabled>
+            <option value="md">Markdown (.md)</option>
+            <option value="txt">Text (.txt)</option>
+            <option value="json">JSON (.json)</option>
+          </select>
+          <div class="help" style="margin-top:10px">${t('claudeHint')}</div>
+          <button class="btn btn-primary" style="width:100%;margin-top:16px" ${busy ? 'disabled' : ''}>
+            ${busy ? `<span class="spinner"></span> ${t('generating')}` : `✦ ${t('generate')}`}</button>
+        </form>
+        <div class="card">
+          <div style="padding:14px 16px;border-bottom:2px solid var(--line);font-weight:700;color:var(--black)">${t('historyTitle')} (${outputs.length})</div>
+          ${outputs.length === 0 ? `<div class="empty-state">${t('empty')}</div>` :
+            outputs.map(o => `
+            <div class="out-row">
+              <div class="file-ico">${o.format.toUpperCase()}</div>
+              <div class="grow">
+                <div class="name" style="font-weight:600">${esc(o.title)}</div>
+                <div class="sub" style="font-size:12px;color:var(--muted)">${esc(o.type)} · ${new Date(o.created_at).toLocaleString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</div>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="A.downloadStudioHomeOutput('${o.id}')">${t('download')}</button>
+            </div>`).join('')}
         </div>
       </div>`;
   }
@@ -550,6 +604,7 @@
       <div class="page-head">
         <h2>${t('usersTitle')}</h2>
         <button class="btn btn-ghost btn-sm" onclick="A.adminShowLogs()">📋 ${t('activityLog')}</button>
+        <button class="btn btn-ghost btn-sm" onclick="A.downloadBackup()">💾 ${t('backup')}</button>
         <div class="grow"></div>
         <button class="btn btn-primary" onclick="A.openNewUser()">+ ${t('addUser')}</button>
       </div>
@@ -606,6 +661,7 @@
     if (!S.user) { app.innerHTML = loginView(); return; }
     let content = '';
     if (S.view === 'assistant') content = assistantView();
+    else if (S.view === 'studio') content = studioHomeView();
     else if (S.view === 'dashboard') content = dashboardView();
     else if (S.view === 'workspace') content = wsView();
     else if (S.view === 'admin') content = adminView();
@@ -637,7 +693,7 @@
         if (first) { S.provider = first.id; localStorage.setItem('provider', first.id); }
       }
     },
-    nav(view) { S.view = view; S.modal = ''; if (view === 'assistant') A.loadAssistant(); else if (view === 'dashboard') A.loadDashboard(); else if (view === 'admin') A.loadAdmin(); else render(); },
+    nav(view) { S.view = view; S.modal = ''; if (view === 'assistant') A.loadAssistant(); else if (view === 'studio') A.loadStudioHome(); else if (view === 'dashboard') A.loadDashboard(); else if (view === 'admin') A.loadAdmin(); else render(); },
     closeModal() { S.modal = ''; render(); },
 
     async login(e) {
@@ -668,7 +724,7 @@
     async loadDashboard() {
       try {
         const data = await api('/workspaces' + (S.showArchived ? '?archived=1' : ''));
-        S.workspaces = data.workspaces.filter(w => w.kind !== 'chat'); S.view = 'dashboard'; render();
+        S.workspaces = data.workspaces.filter(w => w.kind !== 'chat' && w.kind !== 'studio'); S.view = 'dashboard'; render();
       } catch (err) { toast(err.message, true); }
     },
     toggleArchived(v) { S.showArchived = v; A.loadDashboard(); },
@@ -891,6 +947,40 @@
       catch (err) { toast(err.message, true); }
     },
 
+    // standalone studio (text → file, no chat/files needed)
+    async loadStudioHome() {
+      try {
+        const data = await api('/workspaces');
+        const ws = data.workspaces.find(w => w.kind === 'studio');
+        S.studioWs = ws ? await api('/workspaces/' + ws.id) : null;
+        S.view = 'studio'; render();
+      } catch (err) { toast(err.message, true); }
+    },
+    async genStudio(e) {
+      e.preventDefault();
+      const f = e.target;
+      const text = f.text.value.trim(); if (!text) return;
+      const type = f.type.value;
+      const format = type === 'pptx' ? 'pptx' : f.format.value;
+      S.studioDraft = text;
+      S.busy.studioHome = true; render();
+      try {
+        if (!S.studioWs) {
+          const d = await api('/workspaces', { method: 'POST', body: JSON.stringify({ title: 'Studio', kind: 'studio', language: S.lang, mode: 'unguarded' }) });
+          S.studioWs = await api('/workspaces/' + d.workspace.id);
+        }
+        const r = await api(`/workspaces/${S.studioWs.workspace.id}/studio`, {
+          method: 'POST',
+          body: JSON.stringify({ type, format, instructions: text, scope: 'focused', provider: S.provider, preferClaude: true }),
+        });
+        if (r.fallbackError) toast('Provider failed, demo fallback used', true); else toast('✓');
+        S.studioWs = await api('/workspaces/' + S.studioWs.workspace.id);
+        A.downloadStudioHomeOutput(r.output.id);
+      } catch (err) { toast(err.message, true); }
+      S.busy.studioHome = false; render();
+    },
+    downloadStudioHomeOutput(id) { A._download(`/api/workspaces/${S.studioWs.workspace.id}/studio/${id}/download`); },
+
     // assistant (general chat)
     async loadAssistant() {
       try {
@@ -976,6 +1066,7 @@
       catch (err) { toast(err.message, true); }
     },
     adminShowUsers() { A.loadAdmin(); },
+    downloadBackup() { A._download('/api/users/backup'); },
     openNewUser() { S.modal = userModal(null); render(); },
     openEditUser(id) { S.modal = userModal(S.adminUsers.find(u => u.id === id)); render(); },
     async saveUser(e, id) {

@@ -1,6 +1,5 @@
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
 const { v4: uuid } = require('uuid');
 const config = require('../config');
 const store = require('../storage');
@@ -57,11 +56,12 @@ router.post('/', requireWorkspace, async (req, res) => {
       return res.status(502).json({ error: 'Model returned an invalid deck specification', raw: out.text.slice(0, 1500) });
     const fileBase = `deck-${ws.id.slice(0, 8)}-${Date.now()}`;
     const fileName = await buildDeck(spec, fileBase, language === 'ar');
+    let fileData = null;
+    try { fileData = require('fs').readFileSync(path.join(config.generatedDir, fileName)); } catch {}
     const output = await store.addOutput({
       id: uuid(), workspace_id: ws.id, type: 'pptx', format: 'pptx',
       title: spec.title || 'Briefing Deck', file_name: fileName,
-      content: JSON.stringify(spec),
-      file_data: store.supportsBinaryStorage ? fs.readFileSync(path.join(config.generatedDir, fileName)) : undefined,
+      content: JSON.stringify(spec), file_data: fileData,
       provider: out.provider, created_at: new Date().toISOString(),
     });
     logAction(req.user, 'generate', ws.id, `pptx · ${spec.title || ''}`);
@@ -88,13 +88,16 @@ router.post('/', requireWorkspace, async (req, res) => {
 router.get('/:outputId/download', requireWorkspace, async (req, res) => {
   const o = await store.getOutput(req.params.outputId);
   if (!o || o.workspace_id !== req.workspace.id) return res.status(404).json({ error: 'Output not found' });
-  if (o.format === 'pptx' && o.file_data) {
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(o.file_name || `deck-${o.id.slice(0, 8)}.pptx`)}"`);
-    return res.send(Buffer.from(o.file_data));
+  if (o.format === 'pptx') {
+    const data = await store.getOutputFile(o.id);
+    if (data && data.length) {
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+      res.setHeader('Content-Disposition', `attachment; filename="${o.file_name || 'deck.pptx'}"`);
+      return res.send(data);
+    }
+    if (o.file_name) return res.download(path.join(config.generatedDir, o.file_name), o.file_name);
+    return res.status(404).json({ error: 'Deck file not found' });
   }
-  if (o.format === 'pptx' && o.file_name)
-    return res.download(path.join(config.generatedDir, o.file_name), o.file_name);
   const ext = o.format === 'json' ? 'json' : o.format === 'txt' ? 'txt' : 'md';
   const mime = o.format === 'json' ? 'application/json' : 'text/markdown';
   res.setHeader('Content-Type', `${mime}; charset=utf-8`);

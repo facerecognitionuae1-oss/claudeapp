@@ -69,6 +69,11 @@ window.I18N = {
     claudeHint: 'Claude is used automatically for presentations when configured.',
     activityLog: 'Activity log',
     time: 'Time', user: 'User', action: 'Action', detail: 'Detail',
+    backup: 'Download backup',
+    studioHomeTitle: 'Create a file from your text',
+    studioHomeHint: 'Paste or write your text or bullet points, choose what to create, and click Generate — no chat or file upload needed. Works in Arabic and English; the file comes out in the language you write.',
+    yourText: 'Your text / points',
+    historyTitle: 'Your generated files',
   },
   ar: {
     appName: 'مساحة عمل الذكاء الاصطناعي لموظفي الهيئة',
@@ -139,5 +144,10 @@ window.I18N = {
     claudeHint: 'يُستخدم Claude تلقائياً للعروض التقديمية عند توفره.',
     activityLog: 'سجل النشاط',
     time: 'الوقت', user: 'المستخدم', action: 'الإجراء', detail: 'التفاصيل',
+    backup: 'تنزيل نسخة احتياطية',
+    studioHomeTitle: 'أنشئ ملفاً من نصك',
+    studioHomeHint: 'الصق أو اكتب نصك أو نقاطك، واختر نوع الملف ثم اضغط إنشاء — دون محادثة أو رفع ملفات. يعمل بالعربية والإنجليزية، ويخرج الملف بلغة كتابتك.',
+    yourText: 'نصك / نقاطك',
+    historyTitle: 'ملفاتك المُنشأة',
   },
 };

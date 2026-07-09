@@ -11,6 +11,14 @@ const strip = u => { const { password_hash, ...rest } = u; return rest; };
 
 router.get('/', async (req, res) => res.json({ users: (await store.listUsers()).map(strip) }));
 
+// Full data backup (admin) — JSON export of everything except binary file contents
+router.get('/backup', async (req, res) => {
+  const dump = await store.dump();
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="uaeicp-backup-${new Date().toISOString().slice(0, 10)}.json"`);
+  res.send(JSON.stringify(dump, null, 2));
+});
+
 // Admin activity log — recent actions across all users
 router.get('/logs', async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit || '300', 10) || 300, 1000);

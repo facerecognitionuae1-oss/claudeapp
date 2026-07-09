@@ -26,15 +26,15 @@ router.post('/', requireWorkspace, upload.array('files', 20), async (req, res) =
   const saved = [];
   for (const f of req.files || []) {
     const text = await extractText(f.path, f.mimetype, f.originalname);
+    let content = null;
+    try { content = fs.readFileSync(f.path); } catch {}
     const rec = await store.addFile({
       id: uuid(), workspace_id: req.workspace.id,
       original_name: f.originalname, stored_name: f.filename,
       mime_type: f.mimetype, size_bytes: f.size,
-      extracted_text: text,
-      file_data: store.supportsBinaryStorage ? fs.readFileSync(f.path) : undefined,
-      uploaded_at: new Date().toISOString(),
+      extracted_text: text, content, uploaded_at: new Date().toISOString(),
     });
-    const { extracted_text, file_data, ...pub } = rec;
+    const { extracted_text, content: _content, file_data, ...pub } = rec;
     saved.push({ ...pub, has_text: !!(text || '').trim() });
   }
   await store.updateWorkspace(req.workspace.id, {});
@@ -53,10 +53,12 @@ router.delete('/:fileId', requireWorkspace, async (req, res) => {
 router.get('/:fileId/download', requireWorkspace, async (req, res) => {
   const f = await store.getFile(req.params.fileId);
   if (!f || f.workspace_id !== req.workspace.id) return res.status(404).json({ error: 'File not found' });
-  if (f.file_data) {
+  // Prefer database copy (survives redeploys); fall back to disk.
+  const data = await store.getFileContent(f.id);
+  if (data && data.length) {
     res.setHeader('Content-Type', f.mime_type || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(f.original_name)}"`);
-    return res.send(Buffer.from(f.file_data));
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(f.original_name)}`);
+    return res.send(data);
   }
   res.download(path.join(config.uploadDir, f.stored_name), f.original_name);
 });
