@@ -15,8 +15,8 @@ const MODE_RULES = {
 };
 
 const LANG_RULES = {
-  en: 'Respond in clear professional English.',
-  ar: 'Respond fully in Modern Standard Arabic (اللغة العربية الفصحى). Keep document filenames and citation markers as-is.',
+  en: 'Respond in clear professional English. EXCEPTION: if the employee explicitly requests another language (e.g. "in Arabic", "بالعربية"), that request overrides this rule — respond fully in the requested language.',
+  ar: 'Respond fully in Modern Standard Arabic (اللغة العربية الفصحى). Keep document filenames and citation markers as-is. EXCEPTION: if the employee explicitly requests another language (e.g. "in English"), that request overrides this rule.',
   auto: "Match the language of the employee's request: if their question, brief or instructions are written in Arabic, respond fully in Arabic; if in English, respond in English. Keep document filenames and citation markers as-is.",
 };
 
@@ -24,7 +24,13 @@ const LANG_RULES = {
 const NO_DOCS_NOTE = `
 NOTE: No documents are uploaded — the employee provided only a written brief. Treat the brief as the task description and produce a useful starting review. You may use general knowledge, but label every such claim [GENERAL KNOWLEDGE] instead of a file citation, keep confidence labels honest, and use the missing-information section to list exactly which documents the employee should obtain before acting.`;
 
-const detectLang = text => /[؀-ۿ]/.test(String(text || '')) ? 'ar' : (/[A-Za-z]/.test(String(text || '')) ? 'en' : null);
+const detectLang = text => {
+  const s = String(text || '');
+  // Explicit request wins: "in arabic" typed in English still means an Arabic answer.
+  if (/(?:in|into|to)\s+arabic|بالعربي|باللغه العربيه|باللغة العربية/i.test(s)) return 'ar';
+  if (/(?:in|into|to)\s+english|بالانجليزي|بالإنجليزي|باللغة الإنجليزية/i.test(s)) return 'en';
+  return /[؀-ۿ]/.test(s) ? 'ar' : (/[A-Za-z]/.test(s) ? 'en' : null);
+};
 
 function baseContext(workspace, files) {
   const docs = (files || [])
@@ -70,7 +76,7 @@ ${MODE_RULES[mode] || MODE_RULES.guarded}
 ${LANG_RULES[language] || LANG_RULES.auto}
 ${hasFiles ? '' : NO_DOCS_NOTE}
 
-CRITICAL LANGUAGE RULE: the ANSWER must be written in the same language as the EMPLOYEE QUESTION below — Arabic question → fully Arabic answer (including all section headings), English question → English answer — regardless of the workspace or interface language.
+CRITICAL LANGUAGE RULE: the ANSWER must be written in the same language as the EMPLOYEE QUESTION below — Arabic question → fully Arabic answer (including all section headings), English question → English answer — regardless of the workspace or interface language. EXCEPTION: if the question explicitly asks for a specific language (e.g. "icp core values in arabic", "اشرح بالإنجليزية"), answer FULLY in that requested language, headings included.
 
 CLEAN FORMAT RULE: never place citations, [doc: ...] markers or bracketed references inside the answer body — they make the text hard to skim. All sources go ONLY in the final References section.
 

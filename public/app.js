@@ -185,7 +185,7 @@
             </div>` : ''}
             ${b ? b.messages.map(m => `
               <div class="msg ${m.role}">${m.role === 'assistant' ? md(m.content) : esc(m.content)}</div>`).join('') : ''}
-            ${busy ? `<div class="msg assistant"><span class="spinner dark"></span></div>` : ''}
+            ${busy ? `<div class="msg assistant typing-msg"><span class="typing"><span></span><span></span><span></span></span></div>` : ''}
           </div>
           <form class="chat-input" onsubmit="A.sendAssist(event)">
             <textarea class="input" name="q" placeholder="${t('typeMessage')}" ${busy ? 'disabled' : ''}
@@ -499,7 +499,7 @@
               <div class="who">${m.role === 'user' ? esc(S.user.username) : esc(m.provider ? `${m.provider}${m.model && m.model !== 'demo' ? ' · ' + m.model : ''}` : 'AI')}</div>
               ${m.role === 'assistant' ? md(m.content) : esc(m.content)}
             </div>`).join('')}
-          ${busy ? `<div class="msg assistant"><span class="spinner dark"></span></div>` : ''}
+          ${busy ? `<div class="msg assistant typing-msg"><span class="typing"><span></span><span></span><span></span></span></div>` : ''}
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px 0;background:#fff">
           ${chips.map(c => `<button type="button" class="btn btn-ghost btn-sm" style="font-weight:500" ${busy ? 'disabled' : ''} onclick="A.askQuick(${attrJson(c)})">${esc(c)}</button>`).join('')}
