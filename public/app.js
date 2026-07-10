@@ -29,6 +29,19 @@
   const app = document.getElementById('app');
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const attrJson = v => JSON.stringify(v).replace(/"/g, '&quot;');
+  // pptx outputs are ready only once a file exists; Manus decks generate in the background
+  const outInfo = o => {
+    if (o.format !== 'pptx' || o.file_name) return { ready: true, processing: false };
+    let st = ''; try { st = JSON.parse(o.content || '{}').status || ''; } catch {}
+    return { ready: false, processing: st === 'processing' };
+  };
+  const outActions = (o, dl) => {
+    const oi = outInfo(o);
+    if (oi.ready) return (o.format !== 'pptx' ? `<button class="btn btn-ghost btn-sm" onclick="A.viewOutput('${o.id}')">${t('view')}</button>` : '') +
+      `<button class="btn btn-primary btn-sm" onclick="A.${dl}('${o.id}')">${t('download')}</button>`;
+    return oi.processing ? `<span class="badge mode" style="display:inline-flex;align-items:center;gap:7px"><span class="spinner dark" style="width:12px;height:12px"></span> ${t('generating')}</span>`
+      : `<span class="badge low">⚠</span>`;
+  };
 
   // Minimal markdown renderer (headings, bold, italics, code, lists, tables, paragraphs)
   function md(src) {
@@ -175,7 +188,9 @@
             ${S.busy.gen ? `<span class="spinner dark"></span>` : ''}
             ${b && b.messages.length ? `<button class="btn btn-dark btn-sm" onclick="A.openGenFromChat()">✦ ${t('makeFromChat')}</button>` : ''}
           </div>
-          ${outputs.length ? `<div class="assist-outs">${outputs.map(o => `<button class="btn btn-ghost btn-sm" onclick="A.downloadChatOutput('${o.id}')">⬇ ${esc(o.title)}</button>`).join('')}</div>` : ''}
+          ${outputs.length ? `<div class="assist-outs">${outputs.map(o => { const oi = outInfo(o); return oi.ready
+              ? `<button class="btn btn-ghost btn-sm" onclick="A.downloadChatOutput('${o.id}')">⬇ ${esc(o.title)}</button>`
+              : `<span class="btn btn-ghost btn-sm" style="cursor:default;opacity:.75"><span class="spinner dark" style="width:12px;height:12px"></span> ${oi.processing ? t('generating') : '⚠'} ${esc(o.title)}</span>`; }).join('')}</div>` : ''}
           <div class="chat-log" id="assist-log">
             ${!b || b.messages.length === 0 ? `
             <div class="empty-state">
@@ -239,7 +254,7 @@
                 <div class="name" style="font-weight:600">${esc(o.title)}</div>
                 <div class="sub" style="font-size:12px;color:var(--muted)">${esc(o.type)} · ${new Date(o.created_at).toLocaleString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</div>
               </div>
-              <button class="btn btn-primary btn-sm" onclick="A.downloadStudioHomeOutput('${o.id}')">${t('download')}</button>
+              ${outActions(o, 'downloadStudioHomeOutput')}
             </div>`).join('')}
         </div>
       </div>`;
@@ -558,8 +573,7 @@
                   <div class="name" style="font-weight:600">${esc(o.title)}</div>
                   <div class="sub" style="font-size:12px;color:var(--muted)">${esc(o.type)} · ${esc(o.provider)} · ${new Date(o.created_at).toLocaleString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</div>
                 </div>
-                ${o.format !== 'pptx' ? `<button class="btn btn-ghost btn-sm" onclick="A.viewOutput('${o.id}')">${t('view')}</button>` : ''}
-                <button class="btn btn-primary btn-sm" onclick="A.downloadOutput('${o.id}')">${t('download')}</button>
+                ${outActions(o, 'downloadOutput')}
               </div>`).join('')}
           </div>
         </div>
@@ -676,6 +690,23 @@
     const alog = $('#assist-log');
     if (alog) alog.scrollTop = alog.scrollHeight;
     bindDropzone();
+    scheduleOutputPoll();
+  }
+
+  // While a Manus deck is generating, silently re-fetch the current workspace every 30s
+  function scheduleOutputPoll() {
+    clearTimeout(S._outPoll);
+    const bundle = S.view === 'studio' ? S.studioWs : S.view === 'assistant' ? S.chatWs : S.view === 'workspace' ? S.ws : null;
+    if (!bundle || !(bundle.outputs || []).some(o => outInfo(o).processing)) return;
+    S._outPoll = setTimeout(async () => {
+      try {
+        const fresh = await api('/workspaces/' + bundle.workspace.id);
+        if (S.view === 'studio' && S.studioWs && S.studioWs.workspace.id === fresh.workspace.id) S.studioWs = fresh;
+        else if (S.view === 'assistant' && S.chatWs && S.chatWs.workspace.id === fresh.workspace.id) S.chatWs = fresh;
+        else if (S.view === 'workspace' && S.ws && S.ws.workspace.id === fresh.workspace.id) S.ws = fresh;
+        render();
+      } catch { scheduleOutputPoll(); }
+    }, 30000);
   }
 
   function bindDropzone() {
