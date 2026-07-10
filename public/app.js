@@ -981,7 +981,11 @@
     async _download(url) {
       try {
         const res = await fetch(url, { headers: { Authorization: 'Bearer ' + S.token } });
-        if (!res.ok) throw new Error(t('error'));
+        if (!res.ok) {
+          const ct = res.headers.get('content-type') || '';
+          const body = ct.includes('json') ? await res.json().catch(() => null) : await res.text().catch(() => '');
+          throw new Error((body && body.error) || body || t('error'));
+        }
         const blob = await res.blob();
         const cd = res.headers.get('content-disposition') || '';
         const m = cd.match(/filename="?([^";]+)"?/);

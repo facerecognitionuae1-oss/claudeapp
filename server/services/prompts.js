@@ -135,12 +135,14 @@ TOPIC FIDELITY — READ TWICE:
 DESIGN BRIEF — MOST IMPORTANT PART:
 - You are designing at the level of a top-tier agency keynote: modern, eye-popping, confident — never dated, cramped or "office clip-art" tacky. Creativity comes from composition and restraint, not from wild colors.
 - COLOR LOGIC, in this exact order: (1) if the employee states colors/brand/mood — in Arabic or English — follow it EXACTLY; (2) else if the subject is UAEICP / ICP / UAE government identity, design a refined modern take on the UAE federal identity: charcoal 232323, gold B68A35, warm white, restrained UAE-flag accents (red C3002F, green 007A3D); (3) otherwise invent a distinctive palette suited to the subject's character.
+- UAE NATIONAL-SECURITY STYLE TARGET when relevant: cinematic black/dark-charcoal canvas, metallic gold HUD linework, UAE flag fabric, Dubai skyline/Burj Khalifa cues, glowing UAE map or world-network overlays, cyber shield/lock/AI/quantum icon medallions, red vs green threat contrasts, thin gold frames, bilingual Arabic/English hierarchy where useful, dense but organized infographic panels. The result should feel like a high-end government cyber/intelligence briefing, not a corporate template.
 - Readability first: strong contrast between "text" and "bg"/"panel". All colors are 6-digit hex WITHOUT '#'.
 
 DESIGN PRINCIPLES (non-negotiable):
 - Generous whitespace; ONE idea per slide; max 5 bullets per slide, each ≤ 10 words.
 - 60-30-10 color balance: dominant background, secondary panel, accent used sparingly for emphasis only.
 - Use "design.blocks" boldly for editorial color-blocking on at least a third of the slides — split panels, full-height bands, oversized off-canvas circles — vary the composition on every slide.
+- For UAE/cyber/security decks, use design.blocks to create gold-framed panels, red/green comparison zones, map/HUD areas, footer alert strips and icon rows. Prefer full-bleed cover and chapter slides with dark overlays.
 - Big type for big statements (title_size 30-40 on hero moments); muted small labels elsewhere.
 - Never place text over a busy area without a solid or overlaid block behind it.
 
@@ -155,7 +157,7 @@ Return ONLY valid JSON (no markdown fences); every human-visible string in the r
     "font": "Calibri | Arial | Georgia | Verdana | Trebuchet MS | Times New Roman",
     "style": "geometric | circles | dots | bars | waves | minimal",
     "heading_font": "optional display font for titles (same whitelist as font)",
-    "image_style": "shared art direction for all images, e.g. 'sleek futuristic 3D render, deep blue and magenta palette, soft studio glow'",
+    "image_style": "shared art direction for all images, e.g. 'cinematic UAE national security cyber briefing, black and metallic gold HUD interface, UAE flag fabric, glowing map networks, premium 3D editorial render'",
     "dark": true
   },
   "slides": [

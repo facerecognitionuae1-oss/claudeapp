@@ -6,10 +6,14 @@ const store = require('../storage');
 const API = 'https://api.manus.ai';
 
 async function manusFetch(path, opts = {}) {
+  const { timeoutMs = 12000, ...fetchOpts } = opts;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   const res = await fetch(API + path, {
-    ...opts,
+    ...fetchOpts,
+    signal: controller.signal,
     headers: { 'Content-Type': 'application/json', 'x-manus-api-key': config.manus.key, ...(opts.headers || {}) },
-  });
+  }).finally(() => clearTimeout(timer));
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data.ok === false) throw new Error(`Manus ${res.status}: ${data.error?.message || 'request failed'}`);
   return data;
@@ -49,23 +53,45 @@ function attachmentFiles(events) {
   return files;
 }
 
+function summarizeAttachments(events) {
+  return (events || []).flatMap(ev => (ev?.assistant_message?.attachments || []).map(a => ({
+    type: a?.type || '',
+    filename: a?.filename || '',
+    content_type: a?.content_type || '',
+    has_url: !!a?.url,
+  }))).slice(0, 20);
+}
+
 function latestStatus(events) {
   const statusEvent = events.find(ev => ev?.status_update?.agent_status);
   return statusEvent?.status_update?.agent_status || 'running';
 }
 
 async function downloadFile(file) {
-  let r = await fetch(file.url);
-  if (!r.ok) {
-    r = await fetch(file.url, { headers: { 'x-manus-api-key': config.manus.key } }).catch(() => r);
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    let r = await fetch(file.url, { signal: controller.signal }).finally(() => clearTimeout(timer));
+    if (!r.ok) {
+      const authed = new AbortController();
+      const authedTimer = setTimeout(() => authed.abort(), 20000);
+      r = await fetch(file.url, { signal: authed.signal, headers: { 'x-manus-api-key': config.manus.key } }).catch(() => r).finally(() => clearTimeout(authedTimer));
+    }
+    if (!r.ok) return { error: `download ${r.status}`, contentType: r.headers.get('content-type') || '' };
+    const contentType = r.headers.get('content-type') || '';
+    const buffer = Buffer.from(await r.arrayBuffer());
+    const isZip = buffer.length > 4 && buffer[0] === 0x50 && buffer[1] === 0x4b;
+    if (!isZip) return { error: 'downloaded attachment is not a PPTX/ZIP file', contentType, bytes: buffer.length };
+    return { buffer, contentType, bytes: buffer.length };
+  } catch (err) {
+    return { error: err.name === 'AbortError' ? 'download timed out' : err.message };
   }
-  if (!r.ok) return null;
-  return Buffer.from(await r.arrayBuffer());
 }
 
 async function createDeckTask(prompt, language, title) {
   const data = await manusFetch('/v2/task.create', {
     method: 'POST',
+    timeoutMs: 30000,
     body: JSON.stringify({
       message: { content: prompt },
       locale: language === 'ar' ? 'ar' : 'en',
@@ -92,19 +118,23 @@ async function refreshManusOutput(output) {
   if (status === 'stopped') {
     const files = attachmentFiles(events);
     if (files.length) {
-      const buf = await downloadFile(files[0]);
-      if (buf) {
+      const downloaded = await downloadFile(files[0]);
+      if (downloaded?.buffer) {
         return store.updateOutput(output.id, {
           title: 'Briefing Deck (Manus)',
           file_name: files[0].name.endsWith('.pptx') ? files[0].name : 'deck.pptx',
-          file_data: buf,
+          file_data: downloaded.buffer,
           content: JSON.stringify({ ...nextMeta, status: 'done' }),
         });
       }
+      return store.updateOutput(output.id, {
+        title: 'Briefing Deck (Manus — PPTX download failed, open task in Manus)',
+        content: JSON.stringify({ ...nextMeta, status: 'no_file', download_error: downloaded?.error || 'download failed', content_type: downloaded?.contentType || '', bytes: downloaded?.bytes || 0, attachments: summarizeAttachments(events) }),
+      });
     }
     return store.updateOutput(output.id, {
       title: 'Briefing Deck (Manus — no PPTX file returned, open task in Manus)',
-      content: JSON.stringify({ ...nextMeta, status: 'no_file' }),
+      content: JSON.stringify({ ...nextMeta, status: 'no_file', attachments: summarizeAttachments(events) }),
     });
   }
 

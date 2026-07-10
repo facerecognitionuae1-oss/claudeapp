@@ -68,6 +68,8 @@ router.post('/', requireWorkspace, async (req, res) => {
 
 LANGUAGE: the entire deck must be in ${language === 'ar' ? 'Arabic' : 'English'}.
 DESIGN: if the material below states design wishes (colors, mood, style), follow them exactly. If the subject is UAEICP/ICP/UAE government identity, use a refined modern UAE federal identity (charcoal, gold B68A35, warm white, restrained flag accents). Otherwise invent a distinctive premium theme. Eye-popping but professional — agency-keynote level.
+REFERENCE STYLE TARGET: aim for a premium UAE national-security / cyber-intelligence deck: cinematic black background, metallic gold HUD linework, UAE flag fabric, Burj Khalifa/Dubai skyline cues when relevant, glowing UAE map/network overlays, red/green/gold threat comparison panels, custom icon medallions, bilingual Arabic/English title hierarchy when useful, dense but organized infographic layouts, dramatic full-bleed backgrounds, no plain office templates.
+AI COLLABORATION EXPECTATION: use Manus for final research, design composition, visuals and PPTX export; structure the deck as if a senior content strategist, visual designer and image director are working together. Prioritize presentation caliber over speed, but avoid unnecessary deep research when the source material is already provided.
 SPEED: work as fast as possible. ${(hasFiles || context.includes('LIVE WEB SEARCH RESULTS')) ? 'All source material is ALREADY PROVIDED below — do NOT conduct additional web research; go straight to structuring and designing.' : 'Do only brief, focused research on the topic — no deep multi-source investigation.'} Target 10-14 slides unless the employee requests otherwise.
 CONTENT: base it on the material below${hasFiles ? '' : ' and your knowledge of the topic'}. ${focused ? 'FOCUSED SCOPE: build ONLY around the points in the employee instructions.' : ''} No citations on content slides; end with a References slide listing sources. Include speaker notes.
 DELIVERABLE: the final editable .pptx file.
@@ -153,7 +155,11 @@ router.get('/:outputId/download', requireWorkspace, async (req, res) => {
   if (o.format === 'pptx') {
     if (o.provider === 'manus' && !o.file_name) {
       const { refreshManusOutput } = require('../services/manus');
-      o = await refreshManusOutput(o);
+      try {
+        o = await refreshManusOutput(o);
+      } catch (err) {
+        return res.status(502).json({ error: `Could not refresh Manus output: ${err.message}` });
+      }
     }
     const data = await store.getOutputFile(o.id);
     if (data && data.length) {
