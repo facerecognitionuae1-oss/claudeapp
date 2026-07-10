@@ -17,6 +17,52 @@ const logAction = (user, action, wsId, detail) => {
 };
 router.use(requireAuth);
 
+async function buildDeckCollaborationBrief({ context, language, focused, hasFiles, instructions }) {
+  const cfg = require('../config');
+  const jobs = [];
+  const briefContext = context.slice(0, 22000);
+
+  if (cfg.providers.anthropic.key) {
+    jobs.push(ai.chat({
+      provider: 'anthropic',
+      system: `You are Claude acting as the senior content strategist for a premium UAEICP PowerPoint. Return a concise deck strategy only, no markdown fences. Language target: ${language === 'ar' ? 'Arabic' : 'English'}.`,
+      user: `Create the narrative architecture for a 10-14 slide government-grade briefing deck.
+Focus on: thesis, slide sequence, key messages, evidence priorities, speaker-note guidance, and bilingual Arabic/English hierarchy where useful.
+${focused ? 'Respect the employee instructions as the strict scope.' : 'Cover the full source material.'}
+Employee instructions: ${instructions || '(none)'}
+
+SOURCE MATERIAL:
+${briefContext}`,
+    }).then(r => ({ role: 'Claude content strategist', provider: r.provider, text: r.text.slice(0, 4500) })).catch(err => ({ role: 'Claude content strategist', error: err.message })));
+  }
+
+  if (cfg.providers.openai.key) {
+    jobs.push(ai.chat({
+      provider: 'openai',
+      system: 'You are GPT acting as the visual director and image prompt engineer for an elite government cyber/intelligence PowerPoint. Return concise art direction only, no markdown fences.',
+      user: `Define a premium visual system matching this reference caliber:
+- cinematic black / dark-charcoal canvas
+- metallic gold HUD linework and thin frames
+- UAE flag fabric, Dubai skyline/Burj Khalifa cues where relevant
+- glowing UAE map/world network overlays
+- red/green/gold threat panels
+- icon medallions for AI, quantum, cyber, identity, security
+- full Arabic support and optional bilingual title hierarchy
+
+Give: palette, typography guidance, recurring motifs, 5-7 image prompts with no text/logos/people, and slide composition patterns.
+Employee instructions: ${instructions || '(none)'}
+Topic material:
+${briefContext}`,
+    }).then(r => ({ role: 'GPT visual director', provider: r.provider, text: r.text.slice(0, 4500) })).catch(err => ({ role: 'GPT visual director', error: err.message })));
+  }
+
+  if (!jobs.length) return '';
+  const results = await Promise.all(jobs);
+  return results.map(r => r.error
+    ? `### ${r.role}\nUnavailable: ${r.error}`
+    : `### ${r.role} (${r.provider})\n${r.text}`).join('\n\n');
+}
+
 router.get('/types', (req, res) => {
   res.json({
     types: Object.entries(STUDIO_TYPES).map(([id, t]) => ({ id, title: t.title })).concat([{ id: 'pptx', title: 'PowerPoint Briefing Deck' }]),
@@ -64,6 +110,7 @@ router.post('/', requireWorkspace, async (req, res) => {
     const { manusConfigured, createDeckTask, pollDeck } = require('../services/manus');
     if (manusConfigured()) {
       // Manus generates the complete deck asynchronously (typically 5-15 minutes).
+      const collaborationBrief = await buildDeckCollaborationBrief({ context, language, focused, hasFiles, instructions });
       const deckPrompt = `Create a stunning, modern, professional PowerPoint (.pptx) presentation for an employee of the UAE Federal Authority for Identity, Citizenship, Customs & Port Security (UAEICP). Internal use.
 
 LANGUAGE: the entire deck must be in ${language === 'ar' ? 'Arabic' : 'English'}.
@@ -74,13 +121,15 @@ SPEED: work as fast as possible. ${(hasFiles || context.includes('LIVE WEB SEARC
 CONTENT: base it on the material below${hasFiles ? '' : ' and your knowledge of the topic'}. ${focused ? 'FOCUSED SCOPE: build ONLY around the points in the employee instructions.' : ''} No citations on content slides; end with a References slide listing sources. Include speaker notes.
 DELIVERABLE: the final editable .pptx file.
 
+${collaborationBrief ? `COLLABORATION INPUTS FROM OTHER AI MODELS (use these as creative direction, but verify content yourself):\n${collaborationBrief}\n` : 'COLLABORATION INPUTS: Claude/OpenAI keys are not both configured, so Manus should act as strategist, visual director and producer.\n'}
+
 MATERIAL:
 ${context.slice(0, 60000)}`;
       const { taskId, taskUrl } = await createDeckTask(deckPrompt, language, `UAEICP deck — ${ws.title}`.slice(0, 80));
       const output = await store.addOutput({
         id: uuid(), workspace_id: ws.id, type: 'pptx', format: 'pptx',
         title: 'Briefing Deck (Manus — generating, 5-15 min…)', file_name: '',
-        content: JSON.stringify({ manus_task_id: taskId, manus_task_url: taskUrl, status: 'processing' }),
+        content: JSON.stringify({ manus_task_id: taskId, manus_task_url: taskUrl, status: 'processing', collaboration: collaborationBrief ? ['claude', 'openai', 'manus'] : ['manus'] }),
         provider: 'manus', created_at: new Date().toISOString(),
       });
       pollDeck(taskId, output.id, ws.id);

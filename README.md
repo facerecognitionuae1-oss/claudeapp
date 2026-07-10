@@ -30,6 +30,8 @@ If a provider call fails, the system falls back to the demo responder and tells 
 
 AI images in slide decks use the same `OPENAI_API_KEY`. Set optional `IMAGE_MODEL=gpt-image-1` to choose the image model; if omitted, the app defaults to `gpt-image-1` and falls back to `dall-e-3`.
 
+For highest-caliber PowerPoint generation, configure all three: `ANTHROPIC_API_KEY` for deck narrative/content strategy, `OPENAI_API_KEY` for visual and image direction, and `MANUS_API_KEY` for final agentic research, design composition, visuals, and PPTX export. If one is missing, the app falls back to the configured providers.
+
 ## AI modes
 
 - **Guarded** — evidence-first: claims only from uploaded material, heavy citations `[doc: filename, near: "…"]`, HIGH/MEDIUM/LOW confidence labels, gaps stated explicitly.
