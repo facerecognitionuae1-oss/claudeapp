@@ -176,7 +176,7 @@ async function createDeckTask(prompt, language, title, attachments = []) {
 }
 
 async function refreshManusOutput(output) {
-  if (!manusConfigured() || !output || output.provider !== 'manus' || output.format !== 'pptx' || output.file_name) return output;
+  if (!manusConfigured() || !output || output.format !== 'pptx' || output.file_name) return output;
   const meta = parseMeta(output);
   const taskId = meta.manus_task_id;
   if (!taskId || !['processing', 'running', 'waiting', 'timeout', 'no_file'].includes(meta.status)) return output;

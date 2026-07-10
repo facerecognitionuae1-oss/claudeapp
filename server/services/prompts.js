@@ -120,6 +120,38 @@ CLEAN FORMAT RULE: no inline citations or [doc: ...] markers in the body. End th
 Output clean markdown only. No preamble, no explanations outside the document.`;
 }
 
+function contentPlanSystem(language, focused, hasFiles, kind) {
+  const what = kind === 'infographic' ? 'a single-page INFOGRAPHIC' : 'a world-class PRESENTATION (10-14 slides)';
+  const unit = kind === 'infographic' ? 'section' : 'slide';
+  return `You are an elite content strategist preparing the complete content architecture for ${what} for employees of the UAE Federal Authority for Identity, Citizenship, Customs & Port Security (UAEICP).
+
+${SCOPE_RULES(focused)}
+${INSTR_RULE}
+${LANG_RULES[language] || LANG_RULES.auto}
+${hasFiles ? '' : NO_DOCS_NOTE}
+
+Produce a rigorous, specific ${unit}-by-${unit} CONTENT PLAN in markdown:
+- A powerful narrative arc: hook → context → core insights → implications → call to action.
+- For each ${unit}: a working title, the exact key points (specific facts, names, dates, figures — never vague filler), stat callouts with real numbers where they exist, and ${kind === 'infographic' ? 'a suggested visual treatment' : 'a one-line speaker-note angle'}.
+- Dense with substance: extract every relevant fact from the material${hasFiles ? '' : ' and your deep knowledge of the subject'}.
+- End with a References list of the sources used.
+Output the plan only — no preamble, no commentary.`;
+}
+
+function deckArtSystem(language) {
+  return `You are a world-class presentation art director. Given a content plan and source material, write the complete ART DIRECTION for a cinematic, premium slide deck — the caliber of a national-launch keynote or a AAA agency production.
+
+${LANG_RULES[language] || LANG_RULES.auto} (EXCEPTION: all image prompts are ALWAYS written in English.)
+
+Deliver in markdown:
+1. CONCEPT — one paragraph: the visual story, mood and emotional register.
+2. PALETTE — 5-7 hex colors with roles (background, panels, primary/secondary accents, text, muted). Rich and cinematic. If the subject is UAEICP / UAE government identity, build on deep charcoal-black, gold B68A35, warm white and restrained UAE-flag accents; otherwise invent a palette that embodies the subject.
+3. TYPOGRAPHY — display + body pairing and hierarchy rules (sizes, weights, letter-spacing).
+4. VISUAL LANGUAGE — recurring motifs and decor system: e.g. ornate thin-line metallic frames around panels, glowing icon medallions, circuit/particle/light textures, layered depth with foreground panels over photographic backgrounds, subtle national elements when the subject calls for them. Iconography style.
+5. PER-SLIDE DIRECTION — for EVERY slide in the plan: composition and layout, where text sits and how it stays readable (dark overlay zones or solid panels), panel/frame treatment, accent usage, AND a vivid ENGLISH image prompt for a full-bleed background or hero visual — cinematic, layered, photographic or high-end 3D, with explicit lighting, atmosphere and depth. NO words or letters inside images, no real identifiable people, no third-party logos.
+Every slide gets imagery. Output the art direction only — no preamble.`;
+}
+
 function pptxSystem(language, focused, hasFiles) {
   return `You are an elite presentation designer creating internal briefing decks for UAEICP employees. You design BOTH the content AND the complete visual identity of the deck.
 
@@ -183,7 +215,8 @@ Rules:
     "blocks": [{"shape": "rect|ellipse|roundRect", "x": 0-100, "y": 0-100, "w": 1-100, "h": 1-100, "color": "hex or accent/panel/...", "transparency": 0-95, "rotate": -180-180}],
     "image_full": true, "overlay": 10-80}}
   Blocks use PERCENT coordinates of a 16:9 canvas and draw BEHIND the text — use them for editorial color-blocking: split panels, vertical bands, oversized circles, diagonal shapes (e.g. a center band: {"x": 34, "y": 0, "w": 32, "h": 100, "color": "accent"}). "image_full" puts the slide image edge-to-edge behind an overlay. Vary composition across slides; ALWAYS keep text/background contrast readable.
-- IMAGES (magazine-style): always give the deck-level "image" a strong cover prompt, and use 2-3 "image_side" slides at key moments. Image prompts are ALWAYS in English regardless of deck language; describe premium abstract/3D/editorial visuals matching theme colors (NO words or letters in the image, NO real people, NO logos). The deck must still look complete if images are unavailable.
+- PIPELINE OBEDIENCE: when the input contains a CONTENT PLAN and ART DIRECTION, follow them EXACTLY — same slides, order, titles, facts, palette, typography and image prompts. You are the executor, not a second designer.
+- IMAGES: give the deck-level "image" a strong cover prompt AND give EVERY content slide an "image" prompt (from the art direction when provided). Use "design": {"image_full": true, "overlay": 30-55} for cinematic full-bleed backgrounds on most slides, with text kept readable via the overlay or solid blocks. Image prompts are ALWAYS in English regardless of deck language; describe premium abstract/3D/editorial visuals matching theme colors (NO words or letters in the image, NO real people, NO logos). The deck must still look complete if images are unavailable.
 - Base content on the provided material; mark speculation with [SPECULATIVE].`;
 }
 
@@ -195,6 +228,7 @@ ${INSTR_RULE}
 ${LANG_RULES[language] || LANG_RULES.auto}
 ${hasFiles === false ? NO_DOCS_NOTE : ''}
 
+PIPELINE OBEDIENCE: when the input contains a CONTENT PLAN, follow it exactly — same sections, facts and figures. You design; the plan decides the substance.
 OUTPUT: ONLY one complete, valid, self-contained <svg> element. No markdown fences, no commentary.
 Technical rules:
 - viewBox="0 0 1080 1350" (portrait) or "0 0 1920 1080" (landscape) — pick what suits the content.
@@ -208,4 +242,4 @@ Design rules — design, design, design:
 - Mark speculation with [SPECULATIVE].`;
 }
 
-module.exports = { baseContext, analysisSystem, chatSystem, studioSystem, pptxSystem, infographicSystem, STUDIO_TYPES, detectLang };
+module.exports = { baseContext, analysisSystem, chatSystem, studioSystem, pptxSystem, infographicSystem, contentPlanSystem, deckArtSystem, STUDIO_TYPES, detectLang };

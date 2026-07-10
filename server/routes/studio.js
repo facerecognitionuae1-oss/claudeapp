@@ -5,7 +5,7 @@ const config = require('../config');
 const store = require('../storage');
 const { requireAuth, requireWorkspace } = require('../middleware/auth');
 const ai = require('../services/ai');
-const { baseContext, studioSystem, pptxSystem, infographicSystem, STUDIO_TYPES, detectLang } = require('../services/prompts');
+const { baseContext, studioSystem, pptxSystem, infographicSystem, contentPlanSystem, deckArtSystem, STUDIO_TYPES, detectLang } = require('../services/prompts');
 const { buildDeck } = require('../services/pptx');
 
 const router = express.Router({ mergeParams: true });
@@ -16,52 +16,6 @@ const logAction = (user, action, wsId, detail) => {
   } catch {}
 };
 router.use(requireAuth);
-
-async function buildDeckCollaborationBrief({ context, language, focused, hasFiles, instructions }) {
-  const cfg = require('../config');
-  const jobs = [];
-  const briefContext = context.slice(0, 22000);
-
-  if (cfg.providers.anthropic.key) {
-    jobs.push(ai.chat({
-      provider: 'anthropic',
-      system: `You are Claude acting as the senior content strategist for a premium UAEICP PowerPoint. Return a concise deck strategy only, no markdown fences. Language target: ${language === 'ar' ? 'Arabic' : 'English'}.`,
-      user: `Create the narrative architecture for a 10-14 slide government-grade briefing deck where EVERY slide is a custom infographic/keynote slide, not a bullet template.
-Focus on: thesis, slide sequence, key messages, evidence priorities, speaker-note guidance, visual metaphor per slide, panel/icon/data layout per slide, and bilingual Arabic/English hierarchy where useful.
-${focused ? 'Respect the employee instructions as the strict scope.' : 'Cover the full source material.'}
-Employee instructions: ${instructions || '(none)'}
-
-SOURCE MATERIAL:
-${briefContext}`,
-    }).then(r => ({ role: 'Claude content strategist', provider: r.provider, text: r.text.slice(0, 4500) })).catch(err => ({ role: 'Claude content strategist', error: err.message })));
-  }
-
-  if (cfg.providers.openai.key) {
-    jobs.push(ai.chat({
-      provider: 'openai',
-      system: 'You are GPT acting as the visual director and image prompt engineer for an elite government cyber/intelligence PowerPoint. Return concise art direction only, no markdown fences.',
-      user: `Define a premium visual system matching this reference caliber:
-- cinematic black / dark-charcoal canvas
-- metallic gold HUD linework and thin frames
-- UAE flag fabric, Dubai skyline/Burj Khalifa cues where relevant
-- glowing UAE map/world network overlays
-- red/green/gold threat panels
-- icon medallions for AI, quantum, cyber, identity, security
-- full Arabic support and optional bilingual title hierarchy
-
-Give: palette, typography guidance, recurring motifs, 10-14 slide-by-slide visual concepts, 5-7 image prompts with no text/logos/people, and composition patterns that avoid generic bullet slides.
-Employee instructions: ${instructions || '(none)'}
-Topic material:
-${briefContext}`,
-    }).then(r => ({ role: 'GPT visual director', provider: r.provider, text: r.text.slice(0, 4500) })).catch(err => ({ role: 'GPT visual director', error: err.message })));
-  }
-
-  if (!jobs.length) return '';
-  const results = await Promise.all(jobs);
-  return results.map(r => r.error
-    ? `### ${r.role}\nUnavailable: ${r.error}`
-    : `### ${r.role} (${r.provider})\n${r.text}`).join('\n\n');
-}
 
 router.get('/types', (req, res) => {
   res.json({
@@ -108,50 +62,64 @@ router.post('/', requireWorkspace, async (req, res) => {
 
   if (type === 'pptx') {
     const { manusConfigured, createDeckTask, pollDeck, uploadStyleReference } = require('../services/manus');
+
+    // ── Multi-AI pipeline ──
+    // Stage 1 (GPT): content architecture. Stage 2 (Claude): art direction.
+    // Stage 3 (Manus): production — or Claude+images fallback when Manus is absent.
+    const contentProvider = cfg.providers.openai.key ? 'openai' : (cfg.providers.anthropic.key ? 'anthropic' : provider);
+    const designProvider = cfg.providers.anthropic.key ? 'anthropic' : contentProvider;
+    const plan = await ai.chat({
+      provider: contentProvider,
+      system: contentPlanSystem(language, focused, hasFiles, 'deck'),
+      user: context.slice(0, 90000) + '\n\nWrite the slide-by-slide content plan now.',
+    });
+    const art = await ai.chat({
+      provider: designProvider,
+      system: deckArtSystem(language),
+      user: 'CONTENT PLAN:\n' + plan.text.slice(0, 25000) + '\n\nSOURCE MATERIAL EXCERPT:\n' + context.slice(0, 25000) + '\n\nWrite the complete art direction now.',
+    });
+    const pipelineBrief = 'SLIDE-BY-SLIDE CONTENT PLAN (follow exactly):\n' + plan.text.slice(0, 25000)
+      + '\n\nART DIRECTION (follow exactly):\n' + art.text.slice(0, 25000);
+
     if (manusConfigured()) {
       // Manus generates the complete deck asynchronously (typically 5-15 minutes).
-      const collaborationBrief = await buildDeckCollaborationBrief({ context, language, focused, hasFiles, instructions });
       const styleReferenceFileId = await uploadStyleReference();
-      const deckPrompt = `Create a stunning, modern, professional PowerPoint (.pptx) presentation for an employee of the UAE Federal Authority for Identity, Citizenship, Customs & Port Security (UAEICP). Internal use.
+      const deckPrompt = `You are the PRODUCTION stage of a three-AI pipeline. A content strategist and an art director have already done their work below. EXECUTE their plan and art direction EXACTLY — every slide, every fact, the palette, typography, motifs and per-slide imagery. Do not redesign; realize their vision at the highest possible craft: cinematic full-bleed backgrounds, layered panels with elegant frames, glowing iconography, perfect visual hierarchy. Every slide fully designed with imagery — nothing plain.
 
 LANGUAGE: the entire deck must be in ${language === 'ar' ? 'Arabic' : 'English'}.
-FULL RESET DESIGN STANDARD: do NOT use a normal corporate template. Every single slide must look custom-built at the level of a cinematic UAE national-security / cyber-intelligence keynote. Think: black/dark-charcoal full-bleed backgrounds, metallic gold HUD linework, UAE flag fabric, Burj Khalifa/Dubai skyline cues when relevant, glowing UAE map and world-network overlays, red/green/gold threat comparison systems, custom icon medallions, thin gold frames, dense but controlled infographic panels, dramatic lighting, bilingual Arabic/English hierarchy where useful. No plain white slides. No generic stock template. No low-effort bullet pages.
-REFERENCE CALIBER: match the style of a premium government cyber threat presentation: every slide should have a designed background, visual metaphor, icon system, panel layout, or data/flow composition. Use full-slide visuals and overlays, not small decorative images.
 ATTACHED STYLE REFERENCE: if a file named premium-deck-style-reference.pdf is attached, study it ONLY as visual/style reference. Do not treat its topic or facts as source material unless the employee explicitly asks for that topic. Copy the caliber: cinematic composition, dense infographic panels, Arabic/English hierarchy, black/gold/red/green visual system, full-bleed media, icon medallions, maps, HUD frames, and rich slide-by-slide media.
-AI COLLABORATION EXPECTATION: use Manus for final research, design composition, visuals and PPTX export; use the Claude and GPT briefs below as senior content strategy and visual direction. Prioritize presentation caliber over speed.
-SPEED: ${(hasFiles || context.includes('LIVE WEB SEARCH RESULTS')) ? 'All source material is already provided; avoid unnecessary research, but spend effort on high-caliber design.' : 'Do focused research only where needed, then spend effort on design and export quality.'} Target 10-14 slides unless the employee requests otherwise.
-CONTENT: base it on the material below${hasFiles ? '' : ' and your knowledge of the topic'}. ${focused ? 'FOCUSED SCOPE: build ONLY around the points in the employee instructions.' : ''} No citations on content slides; end with a References slide listing sources. Include speaker notes.
-DELIVERABLE: attach the final editable .pptx file. Do not only provide HTML slides, a PDF, a preview, or a Manus page link. The final answer must include a downloadable PowerPoint attachment.
+SPEED: all research and design decisions are already made below — do NOT conduct web research; go straight to production.
+DELIVERABLE: the final editable .pptx file, with speaker notes, ending with a References slide.
 
-${collaborationBrief ? `COLLABORATION INPUTS FROM OTHER AI MODELS (use these as creative direction, but verify content yourself):\n${collaborationBrief}\n` : 'COLLABORATION INPUTS: Claude/OpenAI keys are not both configured, so Manus should act as strategist, visual director and producer.\n'}
+${pipelineBrief}
 
-MATERIAL:
-${context.slice(0, 60000)}`;
+SOURCE MATERIAL (for fact checking only):
+${context.slice(0, 40000)}`;
       const { taskId, taskUrl } = await createDeckTask(deckPrompt, language, `UAEICP deck — ${ws.title}`.slice(0, 80), [styleReferenceFileId]);
       const output = await store.addOutput({
         id: uuid(), workspace_id: ws.id, type: 'pptx', format: 'pptx',
         title: 'Briefing Deck (Manus — generating, 5-15 min…)', file_name: '',
-        content: JSON.stringify({ manus_task_id: taskId, manus_task_url: taskUrl, status: 'processing', style_reference_attached: !!styleReferenceFileId, collaboration: collaborationBrief ? ['claude', 'openai', 'manus'] : ['manus'] }),
-        provider: 'manus', created_at: new Date().toISOString(),
+        content: JSON.stringify({ manus_task_id: taskId, manus_task_url: taskUrl, status: 'processing', style_reference_attached: !!styleReferenceFileId, collaboration: [plan.provider, art.provider, 'manus'] }),
+        provider: 'GPT+Claude+Manus', created_at: new Date().toISOString(),
       });
       pollDeck(taskId, output.id, ws.id);
-      logAction(req.user, 'generate', ws.id, 'pptx · manus');
+      logAction(req.user, 'generate', ws.id, 'pptx · gpt+claude+manus');
       return res.status(201).json({ output, processing: true });
     }
-    const out = await ai.chat({ provider: useProvider, model, system: pptxSystem(language, focused, hasFiles), user: context + '\n\nDesign the briefing deck now.' });
+    const out = await ai.chat({ provider: useProvider, model, system: pptxSystem(language, focused, hasFiles), user: pipelineBrief + '\n\nSOURCE MATERIAL:\n' + context.slice(0, 30000) + '\n\nBuild the deck JSON now, following the plan and art direction exactly.' });
     const spec = ai.parseJson(out.text);
     if (!spec || !Array.isArray(spec.slides))
       return res.status(502).json({ error: 'Model returned an invalid deck specification', raw: out.text.slice(0, 1500) });
 
-    // Optional AI imagery — only when the user explicitly enabled it (uses OpenAI credits).
+    // Imagery is always on — this caliber of deck requires it.
     const images = {};
-    if (req.body?.withImages && cfg.providers.openai.key) {
+    if (cfg.providers.openai.key) {
       const { generateImage } = require('../services/images');
       const styleSuffix = (spec.theme?.image_style ? ` Style: ${spec.theme.image_style}.` : '')
-        + ' Ultra-detailed, premium editorial quality, cinematic lighting, professional composition, high-end 3D render aesthetic.';
+        + ' Ultra-detailed, premium editorial quality, cinematic lighting, layered depth, professional composition.';
       const jobs = [];
       if (spec.image) jobs.push(['cover', spec.image]);
-      (spec.slides || []).forEach((sl2, i2) => { if (sl2.image && jobs.length < 4) jobs.push(['s' + i2, sl2.image]); });
+      (spec.slides || []).forEach((sl2, i2) => { if (sl2.image && jobs.length < 6) jobs.push(['s' + i2, sl2.image]); });
       const done = await Promise.all(jobs.map(async ([k, p]) => [k, await generateImage(p + styleSuffix)]));
       for (const [k, buf] of done) if (buf) images[k] = buf;
     }
@@ -164,7 +132,7 @@ ${context.slice(0, 60000)}`;
       id: uuid(), workspace_id: ws.id, type: 'pptx', format: 'pptx',
       title: spec.title || 'Briefing Deck', file_name: fileName,
       content: JSON.stringify(spec), file_data: fileData,
-      provider: out.provider, created_at: new Date().toISOString(),
+      provider: 'GPT+Claude', created_at: new Date().toISOString(),
     });
     logAction(req.user, 'generate', ws.id, `pptx · ${spec.title || ''}`);
     const { file_data, ...pub } = output;
@@ -172,15 +140,21 @@ ${context.slice(0, 60000)}`;
   }
 
   if (type === 'infographic') {
-    const out = await ai.chat({ provider: useProvider || provider, model, system: infographicSystem(language, focused, hasFiles), user: context + '\n\nDesign the infographic now.' });
+    const igContentProvider = cfg.providers.openai.key ? 'openai' : (cfg.providers.anthropic.key ? 'anthropic' : provider);
+    const igPlan = await ai.chat({
+      provider: igContentProvider,
+      system: contentPlanSystem(language, focused, hasFiles, 'infographic'),
+      user: context.slice(0, 90000) + '\n\nWrite the section-by-section content plan now.',
+    });
+    const out = await ai.chat({ provider: useProvider || provider, model, system: infographicSystem(language, focused, hasFiles), user: 'CONTENT PLAN (follow exactly):\n' + igPlan.text.slice(0, 20000) + '\n\nSOURCE MATERIAL:\n' + context.slice(0, 30000) + '\n\nDesign the infographic now.' });
     const m = out.text.match(/<svg[\s\S]*<\/svg>/i);
     if (!m) return res.status(502).json({ error: 'Model returned invalid SVG', raw: out.text.slice(0, 1500) });
     const output = await store.addOutput({
       id: uuid(), workspace_id: ws.id, type: 'infographic', format: 'svg',
       title: language === 'ar' ? 'إنفوجرافيك' : 'Infographic', file_name: '',
-      content: m[0], provider: out.provider, created_at: new Date().toISOString(),
+      content: m[0], provider: 'GPT+Claude', created_at: new Date().toISOString(),
     });
-    logAction(req.user, 'generate', ws.id, 'infographic · svg');
+    logAction(req.user, 'generate', ws.id, 'infographic · gpt+claude');
     return res.status(201).json({ output, fallbackError: out.fallbackError });
   }
 
@@ -204,13 +178,14 @@ router.get('/:outputId/download', requireWorkspace, async (req, res) => {
   let o = await store.getOutput(req.params.outputId);
   if (!o || o.workspace_id !== req.workspace.id) return res.status(404).json({ error: 'Output not found' });
   if (o.format === 'pptx') {
-    if (o.provider === 'manus' && !o.file_name) {
-      const { refreshManusOutput } = require('../services/manus');
-      try {
+    try {
+      const meta = JSON.parse(o.content || '{}');
+      if (meta.manus_task_id && !o.file_name) {
+        const { refreshManusOutput } = require('../services/manus');
         o = await refreshManusOutput(o);
-      } catch (err) {
-        return res.status(502).json({ error: `Could not refresh Manus output: ${err.message}` });
       }
+    } catch (err) {
+      if (err.message) return res.status(502).json({ error: `Could not refresh Manus output: ${err.message}` });
     }
     const data = await store.getOutputFile(o.id);
     if (data && data.length) {
