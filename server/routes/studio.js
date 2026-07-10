@@ -26,8 +26,8 @@ async function buildDeckCollaborationBrief({ context, language, focused, hasFile
     jobs.push(ai.chat({
       provider: 'anthropic',
       system: `You are Claude acting as the senior content strategist for a premium UAEICP PowerPoint. Return a concise deck strategy only, no markdown fences. Language target: ${language === 'ar' ? 'Arabic' : 'English'}.`,
-      user: `Create the narrative architecture for a 10-14 slide government-grade briefing deck.
-Focus on: thesis, slide sequence, key messages, evidence priorities, speaker-note guidance, and bilingual Arabic/English hierarchy where useful.
+      user: `Create the narrative architecture for a 10-14 slide government-grade briefing deck where EVERY slide is a custom infographic/keynote slide, not a bullet template.
+Focus on: thesis, slide sequence, key messages, evidence priorities, speaker-note guidance, visual metaphor per slide, panel/icon/data layout per slide, and bilingual Arabic/English hierarchy where useful.
 ${focused ? 'Respect the employee instructions as the strict scope.' : 'Cover the full source material.'}
 Employee instructions: ${instructions || '(none)'}
 
@@ -49,7 +49,7 @@ ${briefContext}`,
 - icon medallions for AI, quantum, cyber, identity, security
 - full Arabic support and optional bilingual title hierarchy
 
-Give: palette, typography guidance, recurring motifs, 5-7 image prompts with no text/logos/people, and slide composition patterns.
+Give: palette, typography guidance, recurring motifs, 10-14 slide-by-slide visual concepts, 5-7 image prompts with no text/logos/people, and composition patterns that avoid generic bullet slides.
 Employee instructions: ${instructions || '(none)'}
 Topic material:
 ${briefContext}`,
@@ -114,12 +114,12 @@ router.post('/', requireWorkspace, async (req, res) => {
       const deckPrompt = `Create a stunning, modern, professional PowerPoint (.pptx) presentation for an employee of the UAE Federal Authority for Identity, Citizenship, Customs & Port Security (UAEICP). Internal use.
 
 LANGUAGE: the entire deck must be in ${language === 'ar' ? 'Arabic' : 'English'}.
-DESIGN: if the material below states design wishes (colors, mood, style), follow them exactly. If the subject is UAEICP/ICP/UAE government identity, use a refined modern UAE federal identity (charcoal, gold B68A35, warm white, restrained flag accents). Otherwise invent a distinctive premium theme. Eye-popping but professional — agency-keynote level.
-REFERENCE STYLE TARGET: aim for a premium UAE national-security / cyber-intelligence deck: cinematic black background, metallic gold HUD linework, UAE flag fabric, Burj Khalifa/Dubai skyline cues when relevant, glowing UAE map/network overlays, red/green/gold threat comparison panels, custom icon medallions, bilingual Arabic/English title hierarchy when useful, dense but organized infographic layouts, dramatic full-bleed backgrounds, no plain office templates.
-AI COLLABORATION EXPECTATION: use Manus for final research, design composition, visuals and PPTX export; structure the deck as if a senior content strategist, visual designer and image director are working together. Prioritize presentation caliber over speed, but avoid unnecessary deep research when the source material is already provided.
-SPEED: work as fast as possible. ${(hasFiles || context.includes('LIVE WEB SEARCH RESULTS')) ? 'All source material is ALREADY PROVIDED below — do NOT conduct additional web research; go straight to structuring and designing.' : 'Do only brief, focused research on the topic — no deep multi-source investigation.'} Target 10-14 slides unless the employee requests otherwise.
+FULL RESET DESIGN STANDARD: do NOT use a normal corporate template. Every single slide must look custom-built at the level of a cinematic UAE national-security / cyber-intelligence keynote. Think: black/dark-charcoal full-bleed backgrounds, metallic gold HUD linework, UAE flag fabric, Burj Khalifa/Dubai skyline cues when relevant, glowing UAE map and world-network overlays, red/green/gold threat comparison systems, custom icon medallions, thin gold frames, dense but controlled infographic panels, dramatic lighting, bilingual Arabic/English hierarchy where useful. No plain white slides. No generic stock template. No low-effort bullet pages.
+REFERENCE CALIBER: match the style of a premium government cyber threat presentation: every slide should have a designed background, visual metaphor, icon system, panel layout, or data/flow composition. Use full-slide visuals and overlays, not small decorative images.
+AI COLLABORATION EXPECTATION: use Manus for final research, design composition, visuals and PPTX export; use the Claude and GPT briefs below as senior content strategy and visual direction. Prioritize presentation caliber over speed.
+SPEED: ${(hasFiles || context.includes('LIVE WEB SEARCH RESULTS')) ? 'All source material is already provided; avoid unnecessary research, but spend effort on high-caliber design.' : 'Do focused research only where needed, then spend effort on design and export quality.'} Target 10-14 slides unless the employee requests otherwise.
 CONTENT: base it on the material below${hasFiles ? '' : ' and your knowledge of the topic'}. ${focused ? 'FOCUSED SCOPE: build ONLY around the points in the employee instructions.' : ''} No citations on content slides; end with a References slide listing sources. Include speaker notes.
-DELIVERABLE: the final editable .pptx file.
+DELIVERABLE: attach the final editable .pptx file. Do not only provide HTML slides, a PDF, a preview, or a Manus page link. The final answer must include a downloadable PowerPoint attachment.
 
 ${collaborationBrief ? `COLLABORATION INPUTS FROM OTHER AI MODELS (use these as creative direction, but verify content yourself):\n${collaborationBrief}\n` : 'COLLABORATION INPUTS: Claude/OpenAI keys are not both configured, so Manus should act as strategist, visual director and producer.\n'}
 

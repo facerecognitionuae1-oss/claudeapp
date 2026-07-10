@@ -87,6 +87,7 @@ window.I18N = {
     manusStopped: 'Manus stopped',
     notReady: 'Not ready',
     openManus: 'Open Manus',
+    retryDownload: 'Retry download',
   },
   ar: {
     appName: 'مساحة عمل الذكاء الاصطناعي لموظفي الهيئة',
@@ -175,5 +176,6 @@ window.I18N = {
     manusStopped: 'توقف Manus',
     notReady: 'غير جاهز',
     openManus: 'فتح Manus',
+    retryDownload: 'إعادة التنزيل',
   },
 };

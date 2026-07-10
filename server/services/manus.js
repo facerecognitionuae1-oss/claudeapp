@@ -38,19 +38,21 @@ function findPptx(obj, out = [], depth = 0) {
 }
 
 function attachmentFiles(events) {
-  const files = [];
+  const pptx = [];
+  const slides = [];
   for (const ev of events) {
     for (const a of (ev?.assistant_message?.attachments || [])) {
       if (!a || !a.url) continue;
-      const isPptx = a.type === 'slides'
-        || /presentationml/i.test(a.content_type || '')
+      const file = { url: a.url, name: (a.filename && /\.pptx$/i.test(a.filename)) ? a.filename : 'deck.pptx', contentType: a.content_type || '', type: a.type || '' };
+      const isPptx = /presentationml/i.test(a.content_type || '')
         || /\.pptx(?:$|\?)/i.test(a.url)
         || /\.pptx$/i.test(a.filename || '');
-      if (isPptx) files.push({ url: a.url, name: (a.filename && /\.pptx$/i.test(a.filename)) ? a.filename : 'deck.pptx' });
+      if (isPptx) pptx.push(file);
+      else if (a.type === 'slides') slides.push(file);
     }
   }
-  if (!files.length) files.push(...findPptx(events));
-  return files;
+  if (!pptx.length) pptx.push(...findPptx(events));
+  return pptx.length ? pptx : slides;
 }
 
 function summarizeAttachments(events) {
@@ -63,19 +65,52 @@ function summarizeAttachments(events) {
 }
 
 function latestStatus(events) {
+  if (events.some(ev => ev?.status_update?.agent_status === 'stopped')) return 'stopped';
+  if (events.some(ev => ev?.status_update?.agent_status === 'error')) return 'error';
+  if (events.some(ev => ev?.status_update?.agent_status === 'waiting')) return 'waiting';
   const statusEvent = events.find(ev => ev?.status_update?.agent_status);
   return statusEvent?.status_update?.agent_status || 'running';
+}
+
+async function listTaskMessages(taskId) {
+  const all = [];
+  let cursor = '';
+  for (let i = 0; i < 5; i++) {
+    const qs = new URLSearchParams({
+      task_id: taskId,
+      order: 'desc',
+      limit: '200',
+      slides_format: 'pptx',
+      verbose: 'true',
+    });
+    if (cursor) qs.set('cursor', cursor);
+    const data = await manusFetch(`/v2/task.listMessages?${qs.toString()}`);
+    const messages = data.messages || data.events || data.data || [];
+    all.push(...messages);
+    if (!data.has_more || !data.next_cursor) break;
+    cursor = data.next_cursor;
+  }
+  return all;
 }
 
 async function downloadFile(file) {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20000);
-    let r = await fetch(file.url, { signal: controller.signal }).finally(() => clearTimeout(timer));
+    let r = await fetch(file.url, {
+      signal: controller.signal,
+      headers: { Accept: 'application/vnd.openxmlformats-officedocument.presentationml.presentation, application/zip, */*' },
+    }).finally(() => clearTimeout(timer));
     if (!r.ok) {
       const authed = new AbortController();
       const authedTimer = setTimeout(() => authed.abort(), 20000);
-      r = await fetch(file.url, { signal: authed.signal, headers: { 'x-manus-api-key': config.manus.key } }).catch(() => r).finally(() => clearTimeout(authedTimer));
+      r = await fetch(file.url, {
+        signal: authed.signal,
+        headers: {
+          'x-manus-api-key': config.manus.key,
+          Accept: 'application/vnd.openxmlformats-officedocument.presentationml.presentation, application/zip, */*',
+        },
+      }).catch(() => r).finally(() => clearTimeout(authedTimer));
     }
     if (!r.ok) return { error: `download ${r.status}`, contentType: r.headers.get('content-type') || '' };
     const contentType = r.headers.get('content-type') || '';
@@ -110,8 +145,7 @@ async function refreshManusOutput(output) {
   const taskId = meta.manus_task_id;
   if (!taskId || !['processing', 'running', 'waiting', 'timeout', 'no_file'].includes(meta.status)) return output;
 
-  const data = await manusFetch(`/v2/task.listMessages?task_id=${encodeURIComponent(taskId)}&order=desc&limit=200&slides_format=pptx`);
-  const events = data.messages || data.events || data.data || [];
+  const events = await listTaskMessages(taskId);
   const status = latestStatus(events);
   const nextMeta = { ...meta, manus_task_id: taskId, status, checked_at: new Date().toISOString() };
 

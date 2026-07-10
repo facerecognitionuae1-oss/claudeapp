@@ -47,7 +47,8 @@
     return {
       ready: false,
       processing: ['processing', 'running', 'waiting'].includes(st),
-      needsCheck: ['processing', 'running', 'waiting', 'timeout', 'no_file'].includes(st),
+      needsCheck: ['processing', 'running', 'waiting'].includes(st),
+      canRetry: ['timeout', 'no_file', 'stopped'].includes(st),
       status: st,
       label: labels[st] || t('notReady'),
       taskUrl: meta.manus_task_url || '',
@@ -59,6 +60,7 @@
       `<button class="btn btn-primary btn-sm" onclick="A.${dl}('${o.id}')">${t('download')}</button>`;
     const spin = oi.processing ? '<span class="spinner dark" style="width:12px;height:12px"></span>' : '';
     return `<span class="badge ${oi.status === 'error' ? 'low' : 'mode'}" style="display:inline-flex;align-items:center;gap:7px">${spin} ${esc(oi.label)}</span>`
+      + (oi.canRetry ? ` <button class="btn btn-primary btn-sm" onclick="A.${dl}('${o.id}')">${t('retryDownload')}</button>` : '')
       + (oi.taskUrl ? ` <a class="btn btn-ghost btn-sm" href="${esc(oi.taskUrl)}" target="_blank" rel="noopener">${t('openManus')}</a>` : '');
   };
 

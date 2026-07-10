@@ -2,7 +2,6 @@ const express = require('express');
 const { v4: uuid } = require('uuid');
 const store = require('../storage');
 const { requireAuth, requireWorkspace } = require('../middleware/auth');
-const { refreshManusOutputs } = require('../services/manus');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -28,11 +27,10 @@ router.post('/', async (req, res) => {
 
 router.get('/:id', requireWorkspace, async (req, res) => {
   const ws = req.workspace;
-  const [files, analyses, messages, outputsRaw, notes] = await Promise.all([
+  const [files, analyses, messages, outputs, notes] = await Promise.all([
     store.listFiles(ws.id), store.listAnalyses(ws.id), store.listMessages(ws.id),
     store.listOutputs(ws.id), store.listNotes(ws.id),
   ]);
-  const outputs = await refreshManusOutputs(outputsRaw);
   res.json({
     workspace: ws,
     files: files.map(({ extracted_text, ...f }) => ({ ...f, has_text: !!(extracted_text || '').trim() })),
