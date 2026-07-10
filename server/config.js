@@ -26,7 +26,6 @@ module.exports = {
   manus: {
     key: process.env.MANUS_API_KEY || '',
     profile: process.env.MANUS_AGENT_PROFILE || 'manus-1.6',
-    pptx: process.env.MANUS_PPTX === 'true',
   },
   search: {
     tavily: process.env.TAVILY_API_KEY || '',
