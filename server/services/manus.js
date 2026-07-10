@@ -2,6 +2,8 @@
 // downloads the finished .pptx and stores it on the output record.
 const config = require('../config');
 const store = require('../storage');
+const fs = require('fs');
+const path = require('path');
 
 const API = 'https://api.manus.ai';
 
@@ -93,6 +95,38 @@ async function listTaskMessages(taskId) {
   return all;
 }
 
+async function taskDetail(taskId) {
+  const data = await manusFetch(`/v2/task.detail?task_id=${encodeURIComponent(taskId)}`);
+  return data.task || null;
+}
+
+async function uploadFile(filePath, filename = path.basename(filePath)) {
+  if (!fs.existsSync(filePath)) return null;
+  const data = await manusFetch('/v2/file.upload', {
+    method: 'POST',
+    timeoutMs: 30000,
+    body: JSON.stringify({ filename }),
+  });
+  if (!data.upload_url || !data.file?.id) throw new Error('Manus did not return an upload URL');
+  const buffer = fs.readFileSync(filePath);
+  const upload = await fetch(data.upload_url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/pdf' },
+    body: buffer,
+  });
+  if (!upload.ok) throw new Error(`Manus file upload failed: ${upload.status}`);
+  return data.file.id;
+}
+
+async function uploadStyleReference() {
+  const ref = path.join(__dirname, '..', 'assets', 'premium-deck-style-reference.pdf');
+  try { return await uploadFile(ref, 'premium-deck-style-reference.pdf'); }
+  catch (err) {
+    console.warn('[manus] style reference upload failed:', err.message);
+    return null;
+  }
+}
+
 async function downloadFile(file) {
   try {
     const controller = new AbortController();
@@ -123,12 +157,14 @@ async function downloadFile(file) {
   }
 }
 
-async function createDeckTask(prompt, language, title) {
+async function createDeckTask(prompt, language, title, attachments = []) {
+  const content = [{ type: 'text', text: prompt }];
+  for (const fileId of attachments.filter(Boolean)) content.push({ type: 'file', file_id: fileId });
   const data = await manusFetch('/v2/task.create', {
     method: 'POST',
     timeoutMs: 30000,
     body: JSON.stringify({
-      message: { content: prompt },
+      message: { content },
       locale: language === 'ar' ? 'ar' : 'en',
       hide_in_task_list: true,
       interactive_mode: false,
@@ -145,9 +181,15 @@ async function refreshManusOutput(output) {
   const taskId = meta.manus_task_id;
   if (!taskId || !['processing', 'running', 'waiting', 'timeout', 'no_file'].includes(meta.status)) return output;
 
-  const events = await listTaskMessages(taskId);
-  const status = latestStatus(events);
-  const nextMeta = { ...meta, manus_task_id: taskId, status, checked_at: new Date().toISOString() };
+  const [detail, events] = await Promise.all([
+    taskDetail(taskId).catch(err => {
+      console.warn('[manus] detail error:', err.message);
+      return null;
+    }),
+    listTaskMessages(taskId),
+  ]);
+  const status = detail?.status || latestStatus(events);
+  const nextMeta = { ...meta, manus_task_id: taskId, status, credit_usage: detail?.credit_usage, checked_at: new Date().toISOString() };
 
   if (status === 'stopped') {
     const files = attachmentFiles(events);
@@ -232,4 +274,4 @@ function pollDeck(taskId, outputId, wsId) {
   setTimeout(tick, 15000);
 }
 
-module.exports = { manusConfigured, createDeckTask, pollDeck, refreshManusOutput, refreshManusOutputs };
+module.exports = { manusConfigured, createDeckTask, pollDeck, refreshManusOutput, refreshManusOutputs, uploadStyleReference };

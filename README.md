@@ -32,6 +32,8 @@ AI images in slide decks use the same `OPENAI_API_KEY`. Set optional `IMAGE_MODE
 
 For highest-caliber PowerPoint generation, configure all three: `ANTHROPIC_API_KEY` for deck narrative/content strategy, `OPENAI_API_KEY` for visual and image direction, and `MANUS_API_KEY` for final agentic research, design composition, visuals, and PPTX export. If one is missing, the app falls back to the configured providers.
 
+Manus PowerPoint tasks attach `server/assets/premium-deck-style-reference.pdf` as a visual reference when present. The reference is used for design caliber only, not as source facts.
+
 ## AI modes
 
 - **Guarded** — evidence-first: claims only from uploaded material, heavy citations `[doc: filename, near: "…"]`, HIGH/MEDIUM/LOW confidence labels, gaps stated explicitly.

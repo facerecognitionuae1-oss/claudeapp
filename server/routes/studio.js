@@ -107,15 +107,17 @@ router.post('/', requireWorkspace, async (req, res) => {
   const useProvider = ((type === 'pptx' || type === 'infographic') && cfg.providers.anthropic.key) ? 'anthropic' : provider;
 
   if (type === 'pptx') {
-    const { manusConfigured, createDeckTask, pollDeck } = require('../services/manus');
+    const { manusConfigured, createDeckTask, pollDeck, uploadStyleReference } = require('../services/manus');
     if (manusConfigured()) {
       // Manus generates the complete deck asynchronously (typically 5-15 minutes).
       const collaborationBrief = await buildDeckCollaborationBrief({ context, language, focused, hasFiles, instructions });
+      const styleReferenceFileId = await uploadStyleReference();
       const deckPrompt = `Create a stunning, modern, professional PowerPoint (.pptx) presentation for an employee of the UAE Federal Authority for Identity, Citizenship, Customs & Port Security (UAEICP). Internal use.
 
 LANGUAGE: the entire deck must be in ${language === 'ar' ? 'Arabic' : 'English'}.
 FULL RESET DESIGN STANDARD: do NOT use a normal corporate template. Every single slide must look custom-built at the level of a cinematic UAE national-security / cyber-intelligence keynote. Think: black/dark-charcoal full-bleed backgrounds, metallic gold HUD linework, UAE flag fabric, Burj Khalifa/Dubai skyline cues when relevant, glowing UAE map and world-network overlays, red/green/gold threat comparison systems, custom icon medallions, thin gold frames, dense but controlled infographic panels, dramatic lighting, bilingual Arabic/English hierarchy where useful. No plain white slides. No generic stock template. No low-effort bullet pages.
 REFERENCE CALIBER: match the style of a premium government cyber threat presentation: every slide should have a designed background, visual metaphor, icon system, panel layout, or data/flow composition. Use full-slide visuals and overlays, not small decorative images.
+ATTACHED STYLE REFERENCE: if a file named premium-deck-style-reference.pdf is attached, study it ONLY as visual/style reference. Do not treat its topic or facts as source material unless the employee explicitly asks for that topic. Copy the caliber: cinematic composition, dense infographic panels, Arabic/English hierarchy, black/gold/red/green visual system, full-bleed media, icon medallions, maps, HUD frames, and rich slide-by-slide media.
 AI COLLABORATION EXPECTATION: use Manus for final research, design composition, visuals and PPTX export; use the Claude and GPT briefs below as senior content strategy and visual direction. Prioritize presentation caliber over speed.
 SPEED: ${(hasFiles || context.includes('LIVE WEB SEARCH RESULTS')) ? 'All source material is already provided; avoid unnecessary research, but spend effort on high-caliber design.' : 'Do focused research only where needed, then spend effort on design and export quality.'} Target 10-14 slides unless the employee requests otherwise.
 CONTENT: base it on the material below${hasFiles ? '' : ' and your knowledge of the topic'}. ${focused ? 'FOCUSED SCOPE: build ONLY around the points in the employee instructions.' : ''} No citations on content slides; end with a References slide listing sources. Include speaker notes.
@@ -125,11 +127,11 @@ ${collaborationBrief ? `COLLABORATION INPUTS FROM OTHER AI MODELS (use these as 
 
 MATERIAL:
 ${context.slice(0, 60000)}`;
-      const { taskId, taskUrl } = await createDeckTask(deckPrompt, language, `UAEICP deck — ${ws.title}`.slice(0, 80));
+      const { taskId, taskUrl } = await createDeckTask(deckPrompt, language, `UAEICP deck — ${ws.title}`.slice(0, 80), [styleReferenceFileId]);
       const output = await store.addOutput({
         id: uuid(), workspace_id: ws.id, type: 'pptx', format: 'pptx',
         title: 'Briefing Deck (Manus — generating, 5-15 min…)', file_name: '',
-        content: JSON.stringify({ manus_task_id: taskId, manus_task_url: taskUrl, status: 'processing', collaboration: collaborationBrief ? ['claude', 'openai', 'manus'] : ['manus'] }),
+        content: JSON.stringify({ manus_task_id: taskId, manus_task_url: taskUrl, status: 'processing', style_reference_attached: !!styleReferenceFileId, collaboration: collaborationBrief ? ['claude', 'openai', 'manus'] : ['manus'] }),
         provider: 'manus', created_at: new Date().toISOString(),
       });
       pollDeck(taskId, output.id, ws.id);
