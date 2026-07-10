@@ -29,18 +29,37 @@
   const app = document.getElementById('app');
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const attrJson = v => JSON.stringify(v).replace(/"/g, '&quot;');
+  const outputMeta = o => { try { return JSON.parse(o.content || '{}'); } catch { return {}; } };
   // pptx outputs are ready only once a file exists; Manus decks generate in the background
   const outInfo = o => {
     if (o.format !== 'pptx' || o.file_name) return { ready: true, processing: false };
-    let st = ''; try { st = JSON.parse(o.content || '{}').status || ''; } catch {}
-    return { ready: false, processing: st === 'processing' };
+    const meta = outputMeta(o);
+    const st = meta.status || '';
+    const labels = {
+      processing: t('generating'),
+      running: t('manusRunning'),
+      waiting: t('manusWaiting'),
+      timeout: t('manusTimeout'),
+      no_file: t('manusNoFile'),
+      error: t('manusError'),
+      stopped: t('manusStopped'),
+    };
+    return {
+      ready: false,
+      processing: ['processing', 'running', 'waiting'].includes(st),
+      needsCheck: ['processing', 'running', 'waiting', 'timeout', 'no_file'].includes(st),
+      status: st,
+      label: labels[st] || t('notReady'),
+      taskUrl: meta.manus_task_url || '',
+    };
   };
   const outActions = (o, dl) => {
     const oi = outInfo(o);
     if (oi.ready) return (o.format !== 'pptx' ? `<button class="btn btn-ghost btn-sm" onclick="A.viewOutput('${o.id}')">${t('view')}</button>` : '') +
       `<button class="btn btn-primary btn-sm" onclick="A.${dl}('${o.id}')">${t('download')}</button>`;
-    return oi.processing ? `<span class="badge mode" style="display:inline-flex;align-items:center;gap:7px"><span class="spinner dark" style="width:12px;height:12px"></span> ${t('generating')}</span>`
-      : `<span class="badge low">⚠</span>`;
+    const spin = oi.processing ? '<span class="spinner dark" style="width:12px;height:12px"></span>' : '';
+    return `<span class="badge ${oi.status === 'error' ? 'low' : 'mode'}" style="display:inline-flex;align-items:center;gap:7px">${spin} ${esc(oi.label)}</span>`
+      + (oi.taskUrl ? ` <a class="btn btn-ghost btn-sm" href="${esc(oi.taskUrl)}" target="_blank" rel="noopener">${t('openManus')}</a>` : '');
   };
 
   // Minimal markdown renderer (headings, bold, italics, code, lists, tables, paragraphs)
@@ -190,7 +209,7 @@
           </div>
           ${outputs.length ? `<div class="assist-outs">${outputs.map(o => { const oi = outInfo(o); return oi.ready
               ? `<button class="btn btn-ghost btn-sm" onclick="A.downloadChatOutput('${o.id}')">⬇ ${esc(o.title)}</button>`
-              : `<span class="btn btn-ghost btn-sm" style="cursor:default;opacity:.75"><span class="spinner dark" style="width:12px;height:12px"></span> ${oi.processing ? t('generating') : '⚠'} ${esc(o.title)}</span>`; }).join('')}</div>` : ''}
+              : `<span class="btn btn-ghost btn-sm" style="cursor:default;opacity:.75">${oi.processing ? '<span class="spinner dark" style="width:12px;height:12px"></span>' : ''} ${esc(oi.label)} · ${esc(o.title)}</span>`; }).join('')}</div>` : ''}
           <div class="chat-log" id="assist-log">
             ${!b || b.messages.length === 0 ? `
             <div class="empty-state">
@@ -693,11 +712,11 @@
     scheduleOutputPoll();
   }
 
-  // While a Manus deck is generating, silently re-fetch the current workspace every 30s
+  // While a Manus deck is generating or recoverable, silently re-fetch the current workspace every 30s
   function scheduleOutputPoll() {
     clearTimeout(S._outPoll);
     const bundle = S.view === 'studio' ? S.studioWs : S.view === 'assistant' ? S.chatWs : S.view === 'workspace' ? S.ws : null;
-    if (!bundle || !(bundle.outputs || []).some(o => outInfo(o).processing)) return;
+    if (!bundle || !(bundle.outputs || []).some(o => outInfo(o).needsCheck)) return;
     S._outPoll = setTimeout(async () => {
       try {
         const fresh = await api('/workspaces/' + bundle.workspace.id);
