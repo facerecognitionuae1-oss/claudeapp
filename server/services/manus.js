@@ -50,7 +50,8 @@ function pollDeck(taskId, outputId, wsId) {
   const tick = async () => {
     attempts += 1;
     try {
-      const data = await manusFetch(`/v2/task.listMessages?task_id=${encodeURIComponent(taskId)}&order=desc&limit=30`);
+      // slides_format=pptx is essential: without it Manus returns slides as HTML
+      const data = await manusFetch(`/v2/task.listMessages?task_id=${encodeURIComponent(taskId)}&order=desc&limit=50&slides_format=pptx`);
       const events = data.events || data.messages || data.data || [];
       let status = 'running';
       for (const ev of events) {
@@ -58,7 +59,19 @@ function pollDeck(taskId, outputId, wsId) {
         if (s) { status = s; break; }
       }
       if (status === 'stopped') {
-        const files = findPptx(events);
+        // Documented shape: assistant_message.attachments[] = {type, filename, url, content_type}
+        const files = [];
+        for (const ev of events) {
+          for (const a of (ev?.assistant_message?.attachments || [])) {
+            if (!a || !a.url) continue;
+            const isPptx = a.type === 'slides'
+              || /presentationml/i.test(a.content_type || '')
+              || /\.pptx(?:$|\?)/i.test(a.url)
+              || /\.pptx$/i.test(a.filename || '');
+            if (isPptx) files.push({ url: a.url, name: (a.filename && /\.pptx$/i.test(a.filename)) ? a.filename : 'deck.pptx' });
+          }
+        }
+        if (!files.length) files.push(...findPptx(events));
         if (files.length) {
           const r = await fetch(files[0].url);
           if (r.ok) {
@@ -98,13 +111,13 @@ function pollDeck(taskId, outputId, wsId) {
         }
       }
     } catch (err) { console.warn('[manus] poll error:', err.message); }
-    if (attempts < 60) setTimeout(tick, 20000);
+    if (attempts < 75) setTimeout(tick, 12000);
     else await store.updateOutput(outputId, {
       title: 'Briefing Deck (Manus — timed out)',
       content: JSON.stringify({ manus_task_id: taskId, status: 'timeout' }),
     }).catch(() => {});
   };
-  setTimeout(tick, 20000);
+  setTimeout(tick, 15000);
 }
 
 module.exports = { manusConfigured, createDeckTask, pollDeck };

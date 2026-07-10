@@ -68,16 +68,17 @@ router.post('/', requireWorkspace, async (req, res) => {
 
 LANGUAGE: the entire deck must be in ${language === 'ar' ? 'Arabic' : 'English'}.
 DESIGN: if the material below states design wishes (colors, mood, style), follow them exactly. If the subject is UAEICP/ICP/UAE government identity, use a refined modern UAE federal identity (charcoal, gold B68A35, warm white, restrained flag accents). Otherwise invent a distinctive premium theme. Eye-popping but professional — agency-keynote level.
-CONTENT: base it on the material below${hasFiles ? '' : ' and thorough research of the topic'}. ${focused ? 'FOCUSED SCOPE: build ONLY around the points in the employee instructions.' : ''} No citations on content slides; end with a References slide listing sources. Include speaker notes.
+SPEED: work as fast as possible. ${(hasFiles || context.includes('LIVE WEB SEARCH RESULTS')) ? 'All source material is ALREADY PROVIDED below — do NOT conduct additional web research; go straight to structuring and designing.' : 'Do only brief, focused research on the topic — no deep multi-source investigation.'} Target 10-14 slides unless the employee requests otherwise.
+CONTENT: base it on the material below${hasFiles ? '' : ' and your knowledge of the topic'}. ${focused ? 'FOCUSED SCOPE: build ONLY around the points in the employee instructions.' : ''} No citations on content slides; end with a References slide listing sources. Include speaker notes.
 DELIVERABLE: the final editable .pptx file.
 
 MATERIAL:
 ${context.slice(0, 60000)}`;
-      const { taskId } = await createDeckTask(deckPrompt, language, `UAEICP deck — ${ws.title}`.slice(0, 80));
+      const { taskId, taskUrl } = await createDeckTask(deckPrompt, language, `UAEICP deck — ${ws.title}`.slice(0, 80));
       const output = await store.addOutput({
         id: uuid(), workspace_id: ws.id, type: 'pptx', format: 'pptx',
         title: 'Briefing Deck (Manus — generating, 5-15 min…)', file_name: '',
-        content: JSON.stringify({ manus_task_id: taskId, status: 'processing' }),
+        content: JSON.stringify({ manus_task_id: taskId, manus_task_url: taskUrl, status: 'processing' }),
         provider: 'manus', created_at: new Date().toISOString(),
       });
       pollDeck(taskId, output.id, ws.id);
