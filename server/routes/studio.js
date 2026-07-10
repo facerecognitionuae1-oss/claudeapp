@@ -148,9 +148,13 @@ ${context.slice(0, 60000)}`;
 
 // Download a generated output
 router.get('/:outputId/download', requireWorkspace, async (req, res) => {
-  const o = await store.getOutput(req.params.outputId);
+  let o = await store.getOutput(req.params.outputId);
   if (!o || o.workspace_id !== req.workspace.id) return res.status(404).json({ error: 'Output not found' });
   if (o.format === 'pptx') {
+    if (o.provider === 'manus' && !o.file_name) {
+      const { refreshManusOutput } = require('../services/manus');
+      o = await refreshManusOutput(o);
+    }
     const data = await store.getOutputFile(o.id);
     if (data && data.length) {
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
