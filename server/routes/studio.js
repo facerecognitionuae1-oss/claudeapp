@@ -62,29 +62,41 @@ router.post('/', requireWorkspace, async (req, res) => {
 
   if (type === 'pptx') {
     const { manusConfigured, createDeckTask, pollDeck, uploadStyleReference } = require('../services/manus');
+    const useManus = manusConfigured();
+    const pipeLabel = useManus ? 'GPT+Claude+Manus' : 'GPT+Claude';
 
-    // ── Multi-AI pipeline ──
-    // Stage 1 (GPT): content architecture. Stage 2 (Claude): art direction.
-    // Stage 3 (Manus): production — or Claude+images fallback when Manus is absent.
-    const contentProvider = cfg.providers.openai.key ? 'openai' : (cfg.providers.anthropic.key ? 'anthropic' : provider);
-    const designProvider = cfg.providers.anthropic.key ? 'anthropic' : contentProvider;
-    const plan = await ai.chat({
-      provider: contentProvider,
-      system: contentPlanSystem(language, focused, hasFiles, 'deck'),
-      user: context.slice(0, 90000) + '\n\nWrite the slide-by-slide content plan now.',
+    // Respond IMMEDIATELY — the multi-AI pipeline runs in the background so nothing can time out.
+    const output = await store.addOutput({
+      id: uuid(), workspace_id: ws.id, type: 'pptx', format: 'pptx',
+      title: `Briefing Deck (${pipeLabel} — generating…)`, file_name: '',
+      content: JSON.stringify({ status: 'processing', pipeline: pipeLabel }),
+      provider: pipeLabel, created_at: new Date().toISOString(),
     });
-    const art = await ai.chat({
-      provider: designProvider,
-      system: deckArtSystem(language),
-      user: 'CONTENT PLAN:\n' + plan.text.slice(0, 25000) + '\n\nSOURCE MATERIAL EXCERPT:\n' + context.slice(0, 25000) + '\n\nWrite the complete art direction now.',
-    });
-    const pipelineBrief = 'SLIDE-BY-SLIDE CONTENT PLAN (follow exactly):\n' + plan.text.slice(0, 25000)
-      + '\n\nART DIRECTION (follow exactly):\n' + art.text.slice(0, 25000);
+    logAction(req.user, 'generate', ws.id, 'pptx · ' + pipeLabel.toLowerCase());
+    res.status(201).json({ output, processing: true });
 
-    if (manusConfigured()) {
-      // Manus generates the complete deck asynchronously (typically 5-15 minutes).
-      const styleReferenceFileId = await uploadStyleReference();
-      const deckPrompt = `You are the PRODUCTION stage of a three-AI pipeline. A content strategist and an art director have already done their work below. EXECUTE their plan and art direction EXACTLY — every slide, every fact, the palette, typography, motifs and per-slide imagery. Do not redesign; realize their vision at the highest possible craft: cinematic full-bleed backgrounds, layered panels with elegant frames, glowing iconography, perfect visual hierarchy. Every slide fully designed with imagery — nothing plain.
+    setImmediate(async () => {
+      try {
+        // Stage 1 (GPT): content architecture. Stage 2 (Claude): art direction.
+        const contentProvider = cfg.providers.openai.key ? 'openai' : (cfg.providers.anthropic.key ? 'anthropic' : provider);
+        const designProvider = cfg.providers.anthropic.key ? 'anthropic' : contentProvider;
+        const plan = await ai.chat({
+          provider: contentProvider,
+          system: contentPlanSystem(language, focused, hasFiles, 'deck'),
+          user: context.slice(0, 90000) + '\n\nWrite the slide-by-slide content plan now.',
+        });
+        const art = await ai.chat({
+          provider: designProvider,
+          system: deckArtSystem(language),
+          user: 'CONTENT PLAN:\n' + plan.text.slice(0, 25000) + '\n\nSOURCE MATERIAL EXCERPT:\n' + context.slice(0, 25000) + '\n\nWrite the complete art direction now.',
+        });
+        const pipelineBrief = 'SLIDE-BY-SLIDE CONTENT PLAN (follow exactly):\n' + plan.text.slice(0, 25000)
+          + '\n\nART DIRECTION (follow exactly):\n' + art.text.slice(0, 25000);
+
+        if (useManus) {
+          // Stage 3a (Manus): full production from the pre-made briefs.
+          const styleReferenceFileId = await uploadStyleReference();
+          const deckPrompt = `You are the PRODUCTION stage of a three-AI pipeline. A content strategist and an art director have already done their work below. EXECUTE their plan and art direction EXACTLY — every slide, every fact, the palette, typography, motifs and per-slide imagery. Do not redesign; realize their vision at the highest possible craft: cinematic full-bleed backgrounds, layered panels with elegant frames, glowing iconography, perfect visual hierarchy. Every slide fully designed with imagery — nothing plain.
 
 LANGUAGE: the entire deck must be in ${language === 'ar' ? 'Arabic' : 'English'}.
 ATTACHED STYLE REFERENCE: if a file named premium-deck-style-reference.pdf is attached, study it ONLY as visual/style reference. Do not treat its topic or facts as source material unless the employee explicitly asks for that topic. Copy the caliber: cinematic composition, dense infographic panels, Arabic/English hierarchy, black/gold/red/green visual system, full-bleed media, icon medallions, maps, HUD frames, and rich slide-by-slide media.
@@ -95,67 +107,54 @@ ${pipelineBrief}
 
 SOURCE MATERIAL (for fact checking only):
 ${context.slice(0, 40000)}`;
-      const { taskId, taskUrl } = await createDeckTask(deckPrompt, language, `UAEICP deck — ${ws.title}`.slice(0, 80), [styleReferenceFileId]);
-      const output = await store.addOutput({
-        id: uuid(), workspace_id: ws.id, type: 'pptx', format: 'pptx',
-        title: 'Briefing Deck (Manus — generating, 5-15 min…)', file_name: '',
-        content: JSON.stringify({ manus_task_id: taskId, manus_task_url: taskUrl, status: 'processing', style_reference_attached: !!styleReferenceFileId, collaboration: [plan.provider, art.provider, 'manus'] }),
-        provider: 'GPT+Claude+Manus', created_at: new Date().toISOString(),
-      });
-      pollDeck(taskId, output.id, ws.id);
-      logAction(req.user, 'generate', ws.id, 'pptx · gpt+claude+manus');
-      return res.status(201).json({ output, processing: true });
-    }
-    const out = await ai.chat({ provider: useProvider, model, system: pptxSystem(language, focused, hasFiles), user: pipelineBrief + '\n\nSOURCE MATERIAL:\n' + context.slice(0, 30000) + '\n\nBuild the deck JSON now, following the plan and art direction exactly.' });
-    const spec = ai.parseJson(out.text);
-    if (!spec || !Array.isArray(spec.slides))
-      return res.status(502).json({ error: 'Model returned an invalid deck specification', raw: out.text.slice(0, 1500) });
+          const { taskId, taskUrl } = await createDeckTask(deckPrompt, language, ('UAEICP deck — ' + ws.title).slice(0, 80), [styleReferenceFileId]);
+          await store.updateOutput(output.id, {
+            content: JSON.stringify({ status: 'processing', pipeline: pipeLabel, manus_task_id: taskId, manus_task_url: taskUrl, style_reference_attached: !!styleReferenceFileId }),
+          });
+          pollDeck(taskId, output.id, ws.id);
+          return;
+        }
 
-    // Imagery is always on — this caliber of deck requires it.
-    const images = {};
-    if (cfg.providers.openai.key) {
-      const { generateImage } = require('../services/images');
-      const styleSuffix = (spec.theme?.image_style ? ` Style: ${spec.theme.image_style}.` : '')
-        + ' Ultra-detailed, premium editorial quality, cinematic lighting, layered depth, professional composition.';
-      const jobs = [];
-      if (spec.image) jobs.push(['cover', spec.image]);
-      (spec.slides || []).forEach((sl2, i2) => { if (sl2.image && jobs.length < 6) jobs.push(['s' + i2, sl2.image]); });
-      const done = await Promise.all(jobs.map(async ([k, p]) => [k, await generateImage(p + styleSuffix)]));
-      for (const [k, buf] of done) if (buf) images[k] = buf;
-    }
+        // Stage 3b (Claude + renderer): execute the briefs with always-on imagery.
+        const execProvider = cfg.providers.anthropic.key ? 'anthropic' : contentProvider;
+        const out = await ai.chat({
+          provider: execProvider, model,
+          system: pptxSystem(language, focused, hasFiles),
+          user: pipelineBrief + '\n\nSOURCE MATERIAL:\n' + context.slice(0, 30000) + '\n\nBuild the deck JSON now, following the plan and art direction exactly.',
+        });
+        const spec = ai.parseJson(out.text);
+        if (!spec || !Array.isArray(spec.slides)) throw new Error('deck specification unparseable');
 
-    const fileBase = `deck-${ws.id.slice(0, 8)}-${Date.now()}`;
-    const fileName = await buildDeck(spec, fileBase, language === 'ar', images);
-    let fileData = null;
-    try { fileData = require('fs').readFileSync(path.join(config.generatedDir, fileName)); } catch {}
-    const output = await store.addOutput({
-      id: uuid(), workspace_id: ws.id, type: 'pptx', format: 'pptx',
-      title: spec.title || 'Briefing Deck', file_name: fileName,
-      content: JSON.stringify(spec), file_data: fileData,
-      provider: 'GPT+Claude', created_at: new Date().toISOString(),
-    });
-    logAction(req.user, 'generate', ws.id, `pptx · ${spec.title || ''}`);
-    const { file_data, ...pub } = output;
-    return res.status(201).json({ output: pub, fallbackError: out.fallbackError });
-  }
+        const images = {};
+        if (cfg.providers.openai.key) {
+          const { generateImage } = require('../services/images');
+          const styleSuffix = (spec.theme?.image_style ? ` Style: ${spec.theme.image_style}.` : '')
+            + ' Ultra-detailed, premium editorial quality, cinematic lighting, layered depth, professional composition.';
+          const jobs = [];
+          if (spec.image) jobs.push(['cover', spec.image]);
+          (spec.slides || []).forEach((sl2, i2) => { if (sl2.image && jobs.length < 6) jobs.push(['s' + i2, sl2.image]); });
+          const done = await Promise.all(jobs.map(async ([k, p]) => [k, await generateImage(p + styleSuffix)]));
+          for (const [k, buf] of done) if (buf) images[k] = buf;
+        }
 
-  if (type === 'infographic') {
-    const igContentProvider = cfg.providers.openai.key ? 'openai' : (cfg.providers.anthropic.key ? 'anthropic' : provider);
-    const igPlan = await ai.chat({
-      provider: igContentProvider,
-      system: contentPlanSystem(language, focused, hasFiles, 'infographic'),
-      user: context.slice(0, 90000) + '\n\nWrite the section-by-section content plan now.',
+        const fileBase = `deck-${ws.id.slice(0, 8)}-${Date.now()}`;
+        const fileName = await buildDeck(spec, fileBase, language === 'ar', images);
+        let fileData = null;
+        try { fileData = require('fs').readFileSync(path.join(config.generatedDir, fileName)); } catch {}
+        await store.updateOutput(output.id, {
+          title: spec.title || 'Briefing Deck', file_name: fileName,
+          content: JSON.stringify(spec), file_data: fileData,
+        });
+        console.log('[pipeline] deck ready:', output.id);
+      } catch (err) {
+        console.warn('[pipeline] failed:', err.message);
+        await store.updateOutput(output.id, {
+          title: 'Briefing Deck — pipeline failed: ' + String(err.message).slice(0, 90),
+          content: JSON.stringify({ status: 'error' }),
+        }).catch(() => {});
+      }
     });
-    const out = await ai.chat({ provider: useProvider || provider, model, system: infographicSystem(language, focused, hasFiles), user: 'CONTENT PLAN (follow exactly):\n' + igPlan.text.slice(0, 20000) + '\n\nSOURCE MATERIAL:\n' + context.slice(0, 30000) + '\n\nDesign the infographic now.' });
-    const m = out.text.match(/<svg[\s\S]*<\/svg>/i);
-    if (!m) return res.status(502).json({ error: 'Model returned invalid SVG', raw: out.text.slice(0, 1500) });
-    const output = await store.addOutput({
-      id: uuid(), workspace_id: ws.id, type: 'infographic', format: 'svg',
-      title: language === 'ar' ? 'إنفوجرافيك' : 'Infographic', file_name: '',
-      content: m[0], provider: 'GPT+Claude', created_at: new Date().toISOString(),
-    });
-    logAction(req.user, 'generate', ws.id, 'infographic · gpt+claude');
-    return res.status(201).json({ output, fallbackError: out.fallbackError });
+    return;
   }
 
   const t = STUDIO_TYPES[type];
