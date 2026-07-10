@@ -133,6 +133,7 @@ ${hasFiles ? '' : NO_DOCS_NOTE}
 Produce a rigorous, specific ${unit}-by-${unit} CONTENT PLAN in markdown:
 - A powerful narrative arc: hook → context → core insights → implications → call to action.
 - For each ${unit}: a working title, the exact key points (specific facts, names, dates, figures — never vague filler), stat callouts with real numbers where they exist, and ${kind === 'infographic' ? 'a suggested visual treatment' : 'a one-line speaker-note angle'}.
+- DENSITY: every ${unit} must carry at least 3 substantive content elements (points, stats, examples, definitions). If a ${unit} would be thin, merge it into another or enrich it — no near-empty ${unit}s.
 - Dense with substance: extract every relevant fact from the material${hasFiles ? '' : ' and your deep knowledge of the subject'}.
 - End with a References list of the sources used.
 Output the plan only — no preamble, no commentary.`;
@@ -145,10 +146,12 @@ ${LANG_RULES[language] || LANG_RULES.auto} (EXCEPTION: all image prompts are ALW
 
 Deliver in markdown:
 1. CONCEPT — one paragraph: the visual story, mood and emotional register.
-2. PALETTE — 5-7 hex colors with roles (background, panels, primary/secondary accents, text, muted). Rich and cinematic. If the subject is UAEICP / UAE government identity, build on deep charcoal-black, gold B68A35, warm white and restrained UAE-flag accents; otherwise invent a palette that embodies the subject.
+2. PALETTE — 5-7 hex colors with roles (background, panels, primary/secondary accents, text, muted). The palette must EMBODY THE SUBJECT and can be light, dark, warm or cool — vary boldly between decks; never default to one scheme. Honor any employee color wishes first; use national-identity colors only when the subject genuinely calls for them.
 3. TYPOGRAPHY — display + body pairing and hierarchy rules (sizes, weights, letter-spacing).
 4. VISUAL LANGUAGE — recurring motifs and decor system: e.g. ornate thin-line metallic frames around panels, glowing icon medallions, circuit/particle/light textures, layered depth with foreground panels over photographic backgrounds, subtle national elements when the subject calls for them. Iconography style.
 5. PER-SLIDE DIRECTION — for EVERY slide in the plan: composition and layout, where text sits and how it stays readable (dark overlay zones or solid panels), panel/frame treatment, accent usage, AND a vivid ENGLISH image prompt for a full-bleed background or hero visual — cinematic, layered, photographic or high-end 3D, with explicit lighting, atmosphere and depth. NO words or letters inside images, no real identifiable people, no third-party logos.
+DENSITY MANDATE: every slide must feel RICH and fully produced — like the attached reference examples (if provided): multiple layered elements per slide (background art + framed panels + icon medallions + stat callouts + captions), never a title floating over empty space. Direct at least 3 substantive visual/content elements per slide.
+REFERENCE IMAGES (when attached): they are a CRAFT BENCHMARK ONLY — match their level of finish, density, layering and typographic care. Do NOT copy their topic, text, colors or exact layouts; this deck's theme must be its own.
 Every slide gets imagery. Output the art direction only — no preamble.`;
 }
 
@@ -209,7 +212,8 @@ Return ONLY valid JSON (no markdown fences); every human-visible string in the r
 Rules:
 - "dark": true when bg is dark (use light text), false when bg is light (use dark text).
 - 9-14 slides. MIX layouts aggressively — never the same layout twice in a row. Open with an agenda, use "section" as chapter breaks, "stats"/"big_number" only for real figures from the material (skip if none), "timeline" for dated events, "quote" for one key clause.
-- Bullets ≤ 12 words. No citations on content slides; the LAST content slide must be {"layout": "bullets", "title": "References" (or "المراجع")} listing the source documents/conversation.
+- Bullets ≤ 12 words, but 4-6 per slide PLUS stats/blocks/imagery — every slide must feel fully produced and rich, never sparse or near-empty.
+- No citations on content slides; the LAST content slide must be {"layout": "bullets", "title": "References" (or "المراجع")} listing the source documents/conversation.
 - FULL DESIGN CONTROL: any slide (and the deck root, for the cover) may carry a "design" object to compose the canvas yourself:
   {"design": {"bg": "hex or accent/accent2/panel", "text_color": "...", "title_color": "...", "title_size": 14-44, "no_band": true,
     "blocks": [{"shape": "rect|ellipse|roundRect", "x": 0-100, "y": 0-100, "w": 1-100, "h": 1-100, "color": "hex or accent/panel/...", "transparency": 0-95, "rotate": -180-180}],

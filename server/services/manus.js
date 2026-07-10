@@ -100,15 +100,16 @@ async function taskDetail(taskId) {
   return data.task || null;
 }
 
-async function uploadFile(filePath, filename = path.basename(filePath)) {
-  if (!fs.existsSync(filePath)) return null;
+async function uploadFile(fileInput, filename = Buffer.isBuffer(fileInput) ? 'upload.pdf' : path.basename(fileInput)) {
+  const isBuffer = Buffer.isBuffer(fileInput);
+  if (!isBuffer && !fs.existsSync(fileInput)) return null;
   const data = await manusFetch('/v2/file.upload', {
     method: 'POST',
     timeoutMs: 30000,
     body: JSON.stringify({ filename }),
   });
   if (!data.upload_url || !data.file?.id) throw new Error('Manus did not return an upload URL');
-  const buffer = fs.readFileSync(filePath);
+  const buffer = isBuffer ? fileInput : fs.readFileSync(fileInput);
   const upload = await fetch(data.upload_url, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/pdf' },
@@ -119,7 +120,9 @@ async function uploadFile(filePath, filename = path.basename(filePath)) {
 }
 
 async function uploadStyleReference() {
-  const ref = path.join(__dirname, '..', 'assets', 'premium-deck-style-reference.pdf');
+  const ref = fs.existsSync(path.join(__dirname, '..', 'reference', 'deck-reference.pdf'))
+    ? path.join(__dirname, '..', 'reference', 'deck-reference.pdf')
+    : path.join(__dirname, '..', 'assets', 'premium-deck-style-reference.pdf');
   try { return await uploadFile(ref, 'premium-deck-style-reference.pdf'); }
   catch (err) {
     console.warn('[manus] style reference upload failed:', err.message);
@@ -274,4 +277,4 @@ function pollDeck(taskId, outputId, wsId) {
   setTimeout(tick, 15000);
 }
 
-module.exports = { manusConfigured, createDeckTask, pollDeck, refreshManusOutput, refreshManusOutputs, uploadStyleReference };
+module.exports = { manusConfigured, createDeckTask, pollDeck, refreshManusOutput, refreshManusOutputs, uploadStyleReference, uploadFile };

@@ -8,6 +8,16 @@ const ai = require('../services/ai');
 const { baseContext, studioSystem, pptxSystem, infographicSystem, contentPlanSystem, deckArtSystem, STUDIO_TYPES, detectLang } = require('../services/prompts');
 const { buildDeck } = require('../services/pptx');
 
+const REF_PDF = path.join(__dirname, '..', 'reference', 'deck-reference.pdf');
+const REF_PAGES_DIR = path.join(__dirname, '..', 'reference', 'pages');
+function loadReferencePages(max = 3) {
+  try {
+    const fsx = require('fs');
+    return fsx.readdirSync(REF_PAGES_DIR).filter(f => /\.(jpe?g|png)$/i.test(f)).sort().slice(0, max)
+      .map(f => ({ data: fsx.readFileSync(path.join(REF_PAGES_DIR, f)).toString('base64'), media_type: f.endsWith('.png') ? 'image/png' : 'image/jpeg' }));
+  } catch { return []; }
+}
+
 const router = express.Router({ mergeParams: true });
 
 const logAction = (user, action, wsId, detail) => {
@@ -61,7 +71,7 @@ router.post('/', requireWorkspace, async (req, res) => {
   const useProvider = ((type === 'pptx' || type === 'infographic') && cfg.providers.anthropic.key) ? 'anthropic' : provider;
 
   if (type === 'pptx') {
-    const { manusConfigured, createDeckTask, pollDeck, uploadStyleReference } = require('../services/manus');
+    const { manusConfigured, createDeckTask, pollDeck } = require('../services/manus');
     const useManus = manusConfigured();
     const pipeLabel = useManus ? 'GPT+Claude+Manus' : 'GPT+Claude';
 
@@ -85,21 +95,22 @@ router.post('/', requireWorkspace, async (req, res) => {
           system: contentPlanSystem(language, focused, hasFiles, 'deck'),
           user: context.slice(0, 90000) + '\n\nWrite the slide-by-slide content plan now.',
         });
+        const refPages = designProvider === 'anthropic' ? loadReferencePages(3) : [];
         const art = await ai.chat({
           provider: designProvider,
           system: deckArtSystem(language),
-          user: 'CONTENT PLAN:\n' + plan.text.slice(0, 25000) + '\n\nSOURCE MATERIAL EXCERPT:\n' + context.slice(0, 25000) + '\n\nWrite the complete art direction now.',
+          images: refPages,
+          user: (refPages.length ? 'The attached images are slides from a REFERENCE deck. They are a CRAFT BENCHMARK ONLY: match their level of finish, density, layering and typographic care — do NOT copy their topic, text, colors or layouts.\n\n' : '')
+            + 'CONTENT PLAN:\n' + plan.text.slice(0, 25000) + '\n\nSOURCE MATERIAL EXCERPT:\n' + context.slice(0, 25000) + '\n\nWrite the complete art direction now.',
         });
         const pipelineBrief = 'SLIDE-BY-SLIDE CONTENT PLAN (follow exactly):\n' + plan.text.slice(0, 25000)
           + '\n\nART DIRECTION (follow exactly):\n' + art.text.slice(0, 25000);
 
         if (useManus) {
           // Stage 3a (Manus): full production from the pre-made briefs.
-          const styleReferenceFileId = await uploadStyleReference();
           const deckPrompt = `You are the PRODUCTION stage of a three-AI pipeline. A content strategist and an art director have already done their work below. EXECUTE their plan and art direction EXACTLY — every slide, every fact, the palette, typography, motifs and per-slide imagery. Do not redesign; realize their vision at the highest possible craft: cinematic full-bleed backgrounds, layered panels with elegant frames, glowing iconography, perfect visual hierarchy. Every slide fully designed with imagery — nothing plain.
 
 LANGUAGE: the entire deck must be in ${language === 'ar' ? 'Arabic' : 'English'}.
-ATTACHED STYLE REFERENCE: if a file named premium-deck-style-reference.pdf is attached, study it ONLY as visual/style reference. Do not treat its topic or facts as source material unless the employee explicitly asks for that topic. Copy the caliber: cinematic composition, dense infographic panels, Arabic/English hierarchy, black/gold/red/green visual system, full-bleed media, icon medallions, maps, HUD frames, and rich slide-by-slide media.
 SPEED: all research and design decisions are already made below — do NOT conduct web research; go straight to production.
 DELIVERABLE: the final editable .pptx file, with speaker notes, ending with a References slide.
 
@@ -107,9 +118,21 @@ ${pipelineBrief}
 
 SOURCE MATERIAL (for fact checking only):
 ${context.slice(0, 40000)}`;
-          const { taskId, taskUrl } = await createDeckTask(deckPrompt, language, ('UAEICP deck — ' + ws.title).slice(0, 80), [styleReferenceFileId]);
+          // Attach the style-reference PDF (craft benchmark, not source material)
+          let refIds = [];
+          try {
+            const fsx = require('fs');
+            if (fsx.existsSync(REF_PDF)) {
+              const { uploadFile } = require('../services/manus');
+              refIds = [await uploadFile(fsx.readFileSync(REF_PDF), 'style-reference.pdf')];
+            }
+          } catch (e) { console.warn('[pipeline] reference upload failed:', e.message); }
+          const finalPrompt = refIds.length
+            ? deckPrompt + '\n\nSTYLE REFERENCE: the attached PDF shows the REQUIRED level of craft — density, layered composition, framed panels, iconography, typographic care, overall finish. Match that LEVEL. Do NOT copy its topic, text, colors or exact layouts; this deck has its own subject and its own theme from the art direction above.'
+            : deckPrompt;
+          const { taskId, taskUrl } = await createDeckTask(finalPrompt, language, ('UAEICP deck — ' + ws.title).slice(0, 80), refIds);
           await store.updateOutput(output.id, {
-            content: JSON.stringify({ status: 'processing', pipeline: pipeLabel, manus_task_id: taskId, manus_task_url: taskUrl, style_reference_attached: !!styleReferenceFileId }),
+            content: JSON.stringify({ status: 'processing', pipeline: pipeLabel, manus_task_id: taskId, manus_task_url: taskUrl }),
           });
           pollDeck(taskId, output.id, ws.id);
           return;
@@ -195,7 +218,7 @@ router.get('/:outputId/download', requireWorkspace, async (req, res) => {
     if (o.file_name) return res.download(path.join(config.generatedDir, o.file_name), o.file_name);
     try {
       const meta = JSON.parse(o.content || '{}');
-      if (meta.status === 'processing') return res.status(409).json({ error: 'Manus is still generating this deck (usually 5-15 minutes). Try again shortly.' });
+      if (meta.status === 'processing') return res.status(409).json({ error: 'The deck is still being generated — try again shortly.' });
     } catch {}
     return res.status(404).json({ error: 'Deck file not found' });
   }

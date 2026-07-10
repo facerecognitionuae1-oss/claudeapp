@@ -16,7 +16,16 @@ async function callOpenAI(system, user, model) {
   return data.choices[0].message.content;
 }
 
-async function callAnthropic(system, user, model) {
+async function callAnthropic(system, user, model, images) {
+  const content = [];
+  for (const img of images || []) {
+    content.push({ type: 'image', source: { type: 'base64', media_type: img.media_type || 'image/jpeg', data: img.data } });
+  }
+  content.push({ type: 'text', text: user });
+  return callAnthropicRaw(system, content, model);
+}
+
+async function callAnthropicRaw(system, content, model) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -28,7 +37,7 @@ async function callAnthropic(system, user, model) {
       model: model || config.providers.anthropic.model,
       max_tokens: 16000,
       system,
-      messages: [{ role: 'user', content: user }],
+      messages: [{ role: 'user', content }],
     }),
   });
   if (!res.ok) throw new Error(`Anthropic ${res.status}: ${(await res.text()).slice(0, 300)}`);
@@ -101,11 +110,11 @@ function demoResponse(system, user) {
   return `**Answer**\nDemo mode — no AI provider configured, so this is a placeholder response.\n\n**Key points**\n- Your request was received (${excerpt ? '"' + excerpt + '..."' : 'empty'}).\n- Configure OpenAI, Anthropic or Ollama in \`.env\` to enable real answers.\n\n**Evidence**\n- None (offline demo). Confidence: HIGH that this is a placeholder.\n\n**Uncertainty**\n- Everything — this output contains no real analysis.\n\n**Next questions**\n- Which AI provider should this deployment use?`;
 }
 
-async function chat({ provider, model, system, user }) {
+async function chat({ provider, model, system, user, images }) {
   const p = provider || 'demo';
   try {
     if (p === 'openai' && providerAvailable('openai')) return { text: await callOpenAI(system, user, model), provider: 'openai', model: model || config.providers.openai.model };
-    if (p === 'anthropic' && providerAvailable('anthropic')) return { text: await callAnthropic(system, user, model), provider: 'anthropic', model: model || config.providers.anthropic.model };
+    if (p === 'anthropic' && providerAvailable('anthropic')) return { text: await callAnthropic(system, user, model, images), provider: 'anthropic', model: model || config.providers.anthropic.model };
     if (p === 'ollama') return { text: await callOllama(system, user, model), provider: 'ollama', model: model || config.providers.ollama.model };
   } catch (err) {
     console.warn(`[ai] ${p} failed: ${err.message} — falling back to demo`);
