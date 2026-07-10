@@ -72,8 +72,8 @@ router.post('/', requireWorkspace, async (req, res) => {
 
   if (type === 'pptx') {
     const { manusConfigured, createDeckTask, pollDeck } = require('../services/manus');
-    const useManus = manusConfigured();
-    const pipeLabel = useManus ? 'GPT+Claude+Manus' : 'GPT+Claude';
+    const useManus = cfg.manus.pptx && manusConfigured();
+    const pipeLabel = useManus ? 'GPT+Claude+Manus' : 'GPT+Claude+OpenAI';
 
     // Respond IMMEDIATELY — the multi-AI pipeline runs in the background so nothing can time out.
     const output = await store.addOutput({
@@ -148,6 +148,12 @@ ${context.slice(0, 40000)}`;
         const spec = ai.parseJson(out.text);
         if (!spec || !Array.isArray(spec.slides)) throw new Error('deck specification unparseable');
 
+        if (spec.image) spec.design = { ...(spec.design || {}), image_full: true, overlay: spec.design?.overlay ?? 38 };
+        (spec.slides || []).forEach(sl => {
+          if (!sl.image) sl.image = `${sl.title || spec.title || 'briefing'} - cinematic premium government presentation background, layered infographic visual, no text, no logos`;
+          sl.design = { ...(sl.design || {}), image_full: true, overlay: sl.design?.overlay ?? 42 };
+        });
+
         const images = {};
         if (cfg.providers.openai.key) {
           const { generateImage } = require('../services/images');
@@ -155,7 +161,7 @@ ${context.slice(0, 40000)}`;
             + ' Ultra-detailed, premium editorial quality, cinematic lighting, layered depth, professional composition.';
           const jobs = [];
           if (spec.image) jobs.push(['cover', spec.image]);
-          (spec.slides || []).forEach((sl2, i2) => { if (sl2.image && jobs.length < 6) jobs.push(['s' + i2, sl2.image]); });
+          (spec.slides || []).forEach((sl2, i2) => { if (sl2.image && jobs.length < 15) jobs.push(['s' + i2, sl2.image]); });
           const done = await Promise.all(jobs.map(async ([k, p]) => [k, await generateImage(p + styleSuffix)]));
           for (const [k, buf] of done) if (buf) images[k] = buf;
         }

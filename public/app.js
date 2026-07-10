@@ -260,7 +260,6 @@
             <option value="txt">Text (.txt)</option>
             <option value="json">JSON (.json)</option>
           </select>
-          <label class="f" style="display:flex;align-items:flex-start;gap:8px;font-weight:600"><input type="checkbox" name="withImages" style="margin-top:3px"> <span>${t('withImages')}</span></label>
           <div class="help" style="margin-top:10px">${t('claudeHint')}</div>
           <button class="btn btn-primary" style="width:100%;margin-top:16px" ${busy ? 'disabled' : ''}>
             ${busy ? `<span class="spinner"></span> ${t('generating')}` : `✦ ${t('generate')}`}</button>
@@ -572,7 +571,6 @@
             </select>
             <label class="f">${t('extraInstructions')}</label>
             <textarea class="input" name="instructions" rows="4"></textarea>
-            <label class="f" style="display:flex;align-items:flex-start;gap:8px;font-weight:600"><input type="checkbox" name="withImages" style="margin-top:3px"> <span>${t('withImages')}</span></label>
             <label class="f">${t('scopeLabel')}</label>
             <div class="choices">
               <label class="choice-card"><input type="radio" name="scope" value="general" checked><span class="cc-title">${t('scopeGeneral')}</span></label>
@@ -1096,7 +1094,6 @@
           <div class="help">${t('claudeHint')}</div>
           <label class="f">${t('extraInstructions')}</label>
           <textarea class="input" name="instructions" rows="3"></textarea>
-          <label class="f" style="display:flex;align-items:flex-start;gap:8px;font-weight:600"><input type="checkbox" name="withImages" style="margin-top:3px"> <span>${t('withImages')}</span></label>
           <div class="actions">
             <button type="button" class="btn btn-ghost" onclick="A.closeModal()">${t('cancel')}</button>
             <button class="btn btn-primary">✦ ${t('generate')}</button>

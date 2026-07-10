@@ -30,7 +30,7 @@ If a provider call fails, the system falls back to the demo responder and tells 
 
 AI images in slide decks use the same `OPENAI_API_KEY`. Set optional `IMAGE_MODEL=gpt-image-1` to choose the image model; if omitted, the app defaults to `gpt-image-1` and falls back to `dall-e-3`.
 
-For highest-caliber PowerPoint generation, configure all three: `ANTHROPIC_API_KEY` for deck narrative/content strategy, `OPENAI_API_KEY` for visual and image direction, and `MANUS_API_KEY` for final agentic research, design composition, visuals, and PPTX export. If one is missing, the app falls back to the configured providers.
+For highest-caliber downloadable PowerPoint generation, configure `ANTHROPIC_API_KEY` for deck narrative/art direction and `OPENAI_API_KEY` for visual planning plus generated slide media. The app saves the PPTX directly so it is downloadable from the workspace. `MANUS_API_KEY` is optional; set `MANUS_PPTX=true` only if you explicitly want Manus to produce the final PPTX.
 
 Manus PowerPoint tasks attach the style reference PDF from `server/reference/deck-reference.pdf` when present, falling back to `server/assets/premium-deck-style-reference.pdf`. Rendered pages in `server/reference/pages/` are also shown to Claude for art direction. These references are used for design caliber only, not as source facts.
 
