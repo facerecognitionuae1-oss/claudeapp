@@ -104,6 +104,13 @@ class PgStore {
   async listOutputs(wsId) { return this.q('SELECT id, workspace_id, type, format, title, file_name, content, provider, created_at FROM outputs WHERE workspace_id=$1 ORDER BY created_at DESC', [wsId]); }
   async getOutput(id) { return (await this.q('SELECT id, workspace_id, type, format, title, file_name, content, provider, created_at FROM outputs WHERE id=$1', [id]))[0] || null; }
   async getOutputFile(id) { const r = (await this.q('SELECT file_data FROM outputs WHERE id=$1', [id]))[0]; return r ? r.file_data : null; }
+  async updateOutput(id, patch) {
+    const cols = Object.keys(patch);
+    if (!cols.length) return this.getOutput(id);
+    const sets = cols.map((c, i) => `${c}=$${i + 2}`).join(', ');
+    await this.q(`UPDATE outputs SET ${sets} WHERE id=$1`, [id, ...cols.map(c => patch[c])]);
+    return this.getOutput(id);
+  }
 
   // Notes
   async addNote(n) {

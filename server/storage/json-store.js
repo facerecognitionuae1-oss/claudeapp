@@ -85,6 +85,11 @@ class JsonStore {
       .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
   }
   async getOutput(id) { return this.db.outputs.find(o => o.id === id) || null; }
+  async updateOutput(id, patch) {
+    const o = this.db.outputs.find(x => x.id === id); if (!o) return null;
+    const { file_data, ...rest } = patch; // binary never persisted in db.json
+    Object.assign(o, rest); this._save(); return o;
+  }
 
   // Notes
   async addNote(n) { this.db.notes.push(n); this._save(); return n; }

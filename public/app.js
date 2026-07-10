@@ -875,6 +875,7 @@
           body: JSON.stringify({ type: f.type.value, format: f.format.disabled ? 'pptx' : f.format.value, instructions: f.instructions.value, scope: f.scope.value, provider: S.provider, web: S.web, withImages: f.withImages ? f.withImages.checked : false }),
         });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true);
+        else if (r.processing) toast(t('manusProcessing'));
         else toast('✓');
       } catch (err) { toast(err.message, true); }
       S.busy.studio = false;
@@ -979,9 +980,11 @@
           method: 'POST',
           body: JSON.stringify({ type, format, instructions: text, scope: 'focused', provider: S.provider, preferClaude: true, web: S.web, withImages: f.withImages ? f.withImages.checked : false }),
         });
-        if (r.fallbackError) toast('Provider failed, demo fallback used', true); else toast('✓');
+        if (r.fallbackError) toast('Provider failed, demo fallback used', true);
+        else if (r.processing) toast(t('manusProcessing'));
+        else toast('✓');
         S.studioWs = await api('/workspaces/' + S.studioWs.workspace.id);
-        A.downloadStudioHomeOutput(r.output.id);
+        if (!r.processing) A.downloadStudioHomeOutput(r.output.id);
       } catch (err) { toast(err.message, true); }
       S.busy.studioHome = false; render();
     },
@@ -1056,9 +1059,11 @@
           method: 'POST',
           body: JSON.stringify({ type, format: type === 'pptx' ? 'pptx' : type === 'infographic' ? 'svg' : 'md', instructions, scope: 'general', provider: S.provider, preferClaude: true, web: S.web, withImages: f.withImages ? f.withImages.checked : false }),
         });
-        if (r.fallbackError) toast('Provider failed, demo fallback used', true); else toast('✓');
+        if (r.fallbackError) toast('Provider failed, demo fallback used', true);
+        else if (r.processing) toast(t('manusProcessing'));
+        else toast('✓');
         S.chatWs = await api('/workspaces/' + S.chatWs.workspace.id);
-        A.downloadChatOutput(r.output.id);
+        if (!r.processing) A.downloadChatOutput(r.output.id);
       } catch (err) { toast(err.message, true); }
       S.busy.gen = false; render();
     },

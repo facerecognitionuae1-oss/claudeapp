@@ -66,7 +66,7 @@ window.I18N = {
     fromChatTitle: 'Generate from this conversation',
     fromChatHint: 'The file is built from your questions and answers in this chat. Add notes below to focus it — for PowerPoint you can also describe the design you want (e.g. "dark and minimal", "vibrant and modern").',
     moreDetails: 'More details',
-    claudeHint: 'Claude is used automatically for presentations when configured.',
+    claudeHint: 'Presentations use Manus AI when configured (full research + design, 5-15 min); otherwise Claude designs them instantly.',
     activityLog: 'Activity log',
     time: 'Time', user: 'User', action: 'Action', detail: 'Detail',
     backup: 'Download backup',
@@ -78,6 +78,7 @@ window.I18N = {
     webSearch: 'Live web search — when ON, answers, analyses and generated files use fresh results from the internet',
     webOn: 'Web ON', webOff: 'Web',
     webNotConfigured: 'Web search is not configured. Set TAVILY_API_KEY (or BRAVE_API_KEY) in .env and restart.',
+    manusProcessing: 'Manus is creating your presentation (usually 5-15 minutes). It will appear in your generated files when ready — refresh to check.',
   },
   ar: {
     appName: 'مساحة عمل الذكاء الاصطناعي لموظفي الهيئة',
@@ -145,7 +146,7 @@ window.I18N = {
     fromChatTitle: 'إنشاء من هذه المحادثة',
     fromChatHint: 'يُبنى الملف من أسئلتك وإجاباتك في هذه المحادثة. أضف ملاحظات أدناه لتحديد التركيز — وللعروض التقديمية يمكنك وصف التصميم الذي تريده (مثل "داكن وبسيط" أو "حيوي وعصري").',
     moreDetails: 'تفاصيل إضافية',
-    claudeHint: 'يُستخدم Claude تلقائياً للعروض التقديمية عند توفره.',
+    claudeHint: 'تُنشأ العروض التقديمية عبر Manus AI عند تهيئته (بحث وتصميم كامل، ٥–١٥ دقيقة)؛ وإلا يصممها Claude فوراً.',
     activityLog: 'سجل النشاط',
     time: 'الوقت', user: 'المستخدم', action: 'الإجراء', detail: 'التفاصيل',
     backup: 'تنزيل نسخة احتياطية',
@@ -157,5 +158,6 @@ window.I18N = {
     webSearch: 'البحث المباشر في الويب — عند التفعيل تستخدم الإجابات والتحليلات والملفات المُنشأة نتائج حديثة من الإنترنت',
     webOn: 'الويب مفعّل', webOff: 'الويب',
     webNotConfigured: 'البحث في الويب غير مهيأ. أضف TAVILY_API_KEY (أو BRAVE_API_KEY) في .env وأعد التشغيل.',
+    manusProcessing: 'يقوم Manus بإنشاء عرضك التقديمي (عادة ٥–١٥ دقيقة). سيظهر في ملفاتك المُنشأة عند اكتماله — حدّث الصفحة للتحقق.',
   },
 };

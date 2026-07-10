@@ -61,6 +61,29 @@ router.post('/', requireWorkspace, async (req, res) => {
   const useProvider = ((type === 'pptx' || type === 'infographic') && cfg.providers.anthropic.key) ? 'anthropic' : provider;
 
   if (type === 'pptx') {
+    const { manusConfigured, createDeckTask, pollDeck } = require('../services/manus');
+    if (manusConfigured()) {
+      // Manus generates the complete deck asynchronously (typically 5-15 minutes).
+      const deckPrompt = `Create a stunning, modern, professional PowerPoint (.pptx) presentation for an employee of the UAE Federal Authority for Identity, Citizenship, Customs & Port Security (UAEICP). Internal use.
+
+LANGUAGE: the entire deck must be in ${language === 'ar' ? 'Arabic' : 'English'}.
+DESIGN: if the material below states design wishes (colors, mood, style), follow them exactly. If the subject is UAEICP/ICP/UAE government identity, use a refined modern UAE federal identity (charcoal, gold B68A35, warm white, restrained flag accents). Otherwise invent a distinctive premium theme. Eye-popping but professional — agency-keynote level.
+CONTENT: base it on the material below${hasFiles ? '' : ' and thorough research of the topic'}. ${focused ? 'FOCUSED SCOPE: build ONLY around the points in the employee instructions.' : ''} No citations on content slides; end with a References slide listing sources. Include speaker notes.
+DELIVERABLE: the final editable .pptx file.
+
+MATERIAL:
+${context.slice(0, 60000)}`;
+      const { taskId } = await createDeckTask(deckPrompt, language, `UAEICP deck — ${ws.title}`.slice(0, 80));
+      const output = await store.addOutput({
+        id: uuid(), workspace_id: ws.id, type: 'pptx', format: 'pptx',
+        title: 'Briefing Deck (Manus — generating, 5-15 min…)', file_name: '',
+        content: JSON.stringify({ manus_task_id: taskId, status: 'processing' }),
+        provider: 'manus', created_at: new Date().toISOString(),
+      });
+      pollDeck(taskId, output.id, ws.id);
+      logAction(req.user, 'generate', ws.id, 'pptx · manus');
+      return res.status(201).json({ output, processing: true });
+    }
     const out = await ai.chat({ provider: useProvider, model, system: pptxSystem(language, focused, hasFiles), user: context + '\n\nDesign the briefing deck now.' });
     const spec = ai.parseJson(out.text);
     if (!spec || !Array.isArray(spec.slides))
@@ -134,6 +157,10 @@ router.get('/:outputId/download', requireWorkspace, async (req, res) => {
       return res.send(data);
     }
     if (o.file_name) return res.download(path.join(config.generatedDir, o.file_name), o.file_name);
+    try {
+      const meta = JSON.parse(o.content || '{}');
+      if (meta.status === 'processing') return res.status(409).json({ error: 'Manus is still generating this deck (usually 5-15 minutes). Try again shortly.' });
+    } catch {}
     return res.status(404).json({ error: 'Deck file not found' });
   }
   const ext = o.format === 'json' ? 'json' : o.format === 'txt' ? 'txt' : o.format === 'svg' ? 'svg' : 'md';
