@@ -252,11 +252,12 @@ async function refreshManusOutputs(outputs) {
   }));
 }
 
-// Background poller: checks every 12s for up to ~15 minutes.
+// Background poller: premium Manus decks can run for a long time.
 function pollDeck(taskId, outputId, wsId) {
-  let attempts = 0;
+  const startedAt = Date.now();
+  const intervalMs = Math.max(5000, Number(config.manus.pollIntervalMs) || 15000);
+  const timeoutMs = Math.max(intervalMs, Number(config.manus.pollTimeoutMs) || 60 * 60 * 1000);
   const tick = async () => {
-    attempts += 1;
     try {
       const output = await store.getOutput(outputId);
       const refreshed = await refreshManusOutput(output);
@@ -265,16 +266,16 @@ function pollDeck(taskId, outputId, wsId) {
         return;
       }
     } catch (err) { console.warn('[manus] poll error:', err.message); }
-    if (attempts < 75) setTimeout(tick, 12000);
+    if (Date.now() - startedAt < timeoutMs) setTimeout(tick, intervalMs);
     else {
       const output = await store.getOutput(outputId).catch(() => null);
       await store.updateOutput(outputId, {
-        title: 'Briefing Deck (Manus — timed out)',
+        title: 'Briefing Deck (Manus - taking longer than expected)',
         content: JSON.stringify({ ...parseMeta(output), manus_task_id: taskId, status: 'timeout', checked_at: new Date().toISOString() }),
       }).catch(() => {});
     }
   };
-  setTimeout(tick, 15000);
+  setTimeout(tick, Math.min(20000, intervalMs));
 }
 
 module.exports = { manusConfigured, createDeckTask, pollDeck, refreshManusOutput, refreshManusOutputs, uploadStyleReference, uploadFile };

@@ -34,6 +34,8 @@ For highest-caliber PowerPoint generation, configure all three: `ANTHROPIC_API_K
 
 Manus PowerPoint tasks attach the style reference PDF from `server/reference/deck-reference.pdf` when present, falling back to `server/assets/premium-deck-style-reference.pdf`. Rendered pages in `server/reference/pages/` are also shown to Claude for art direction. These references are used for design caliber only, not as source facts.
 
+Premium Manus decks can take 15-45+ minutes. The app keeps polling Manus for up to one hour by default before showing Retry download; tune this with `MANUS_POLL_TIMEOUT_MS` and `MANUS_POLL_INTERVAL_MS`.
+
 ## AI modes
 
 - **Guarded** — evidence-first: claims only from uploaded material, heavy citations `[doc: filename, near: "…"]`, HIGH/MEDIUM/LOW confidence labels, gaps stated explicitly.

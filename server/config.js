@@ -26,6 +26,8 @@ module.exports = {
   manus: {
     key: process.env.MANUS_API_KEY || '',
     profile: process.env.MANUS_AGENT_PROFILE || 'manus-1.6',
+    pollIntervalMs: parseInt(process.env.MANUS_POLL_INTERVAL_MS || '15000', 10),
+    pollTimeoutMs: parseInt(process.env.MANUS_POLL_TIMEOUT_MS || String(60 * 60 * 1000), 10),
   },
   search: {
     tavily: process.env.TAVILY_API_KEY || '',
