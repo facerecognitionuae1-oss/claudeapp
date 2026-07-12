@@ -123,7 +123,7 @@ ${plan.text.slice(0, 3600)}
 
 STYLE DIRECTION:
 ${art.text.slice(0, 1500)}`;
-            const { buf } = await generatePpt(skQuery);
+            const { buf } = await generatePpt(skQuery, language);
             const fileName = `deck-${ws.id.slice(0, 8)}-${Date.now()}.pptx`;
             try { require('fs').writeFileSync(path.join(config.generatedDir, fileName), buf); } catch {}
             await store.updateOutput(output.id, {
