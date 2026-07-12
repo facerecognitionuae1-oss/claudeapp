@@ -36,6 +36,8 @@ Manus PowerPoint tasks attach the style reference PDF from `server/reference/dec
 
 Premium Manus decks can take 15-45+ minutes. The app keeps polling Manus for up to one hour by default before showing Retry download; tune this with `MANUS_POLL_TIMEOUT_MS` and `MANUS_POLL_INTERVAL_MS`.
 
+Optional Skywork deck production is available with `SKYWORK_API_KEY`. Manus remains the default premium engine when configured; set `PPT_ENGINE=skywork` to force Skywork, or `PPT_ENGINE=claude` to bypass external deck engines.
+
 ## AI modes
 
 - **Guarded** — evidence-first: claims only from uploaded material, heavy citations `[doc: filename, near: "…"]`, HIGH/MEDIUM/LOW confidence labels, gaps stated explicitly.

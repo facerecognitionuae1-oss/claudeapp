@@ -252,6 +252,27 @@ async function refreshManusOutputs(outputs) {
   }));
 }
 
+async function fetchDeckNow(taskId) {
+  const [detail, events] = await Promise.all([
+    taskDetail(taskId).catch(() => null),
+    listTaskMessages(taskId),
+  ]);
+  const status = detail?.status || latestStatus(events);
+  const files = attachmentFiles(events);
+  if (files.length) {
+    const downloaded = await downloadFile(files[0]);
+    if (downloaded?.buffer) {
+      return {
+        status: 'ready',
+        buf: downloaded.buffer,
+        name: files[0].name.endsWith('.pptx') ? files[0].name : 'deck.pptx',
+      };
+    }
+    return { status: 'no_file', error: downloaded?.error || 'download failed' };
+  }
+  return { status };
+}
+
 // Background poller: premium Manus decks can run for a long time.
 function pollDeck(taskId, outputId, wsId) {
   const startedAt = Date.now();
@@ -278,4 +299,4 @@ function pollDeck(taskId, outputId, wsId) {
   setTimeout(tick, Math.min(20000, intervalMs));
 }
 
-module.exports = { manusConfigured, createDeckTask, pollDeck, refreshManusOutput, refreshManusOutputs, uploadStyleReference, uploadFile };
+module.exports = { manusConfigured, createDeckTask, pollDeck, refreshManusOutput, refreshManusOutputs, fetchDeckNow, uploadStyleReference, uploadFile };

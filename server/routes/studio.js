@@ -72,8 +72,15 @@ router.post('/', requireWorkspace, async (req, res) => {
 
   if (type === 'pptx') {
     const { manusConfigured, createDeckTask, pollDeck } = require('../services/manus');
+    const { skyworkConfigured, generatePpt } = require('../services/skywork');
     const useManus = manusConfigured();
-    const pipeLabel = useManus ? 'GPT+Claude+Manus' : 'GPT+Claude';
+    // Engine preference: PPT_ENGINE env forces one; otherwise Manus > Skywork > Claude.
+    const forced = config.pptEngine;
+    const engine = (forced === 'skywork' && skyworkConfigured()) ? 'skywork'
+      : (forced === 'manus' && useManus) ? 'manus'
+      : (forced === 'claude') ? 'claude'
+      : useManus ? 'manus' : skyworkConfigured() ? 'skywork' : 'claude';
+    const pipeLabel = engine === 'skywork' ? 'GPT+Claude+Skywork' : engine === 'manus' ? 'GPT+Claude+Manus' : 'GPT+Claude';
 
     // Respond IMMEDIATELY — the multi-AI pipeline runs in the background so nothing can time out.
     const output = await store.addOutput({
@@ -106,7 +113,32 @@ router.post('/', requireWorkspace, async (req, res) => {
         const pipelineBrief = 'SLIDE-BY-SLIDE CONTENT PLAN (follow exactly):\n' + plan.text.slice(0, 25000)
           + '\n\nART DIRECTION (follow exactly):\n' + art.text.slice(0, 25000);
 
-        if (useManus) {
+        // Stage 3 — production. Use Skywork only when selected, then fall through on failure.
+        if (engine === 'skywork') {
+          try {
+            const skQuery = `Create a stunning, premium, agency-keynote-quality PowerPoint presentation in ${language === 'ar' ? 'Arabic' : 'English'} (12+ slides). Every slide fully designed: rich layouts, imagery, icons, stat callouts — dense and polished, never sparse. End with a References slide listing sources. ${focused ? 'Cover ONLY the points in the slide plan.' : ''}
+
+SLIDE-BY-SLIDE PLAN (follow exactly):
+${plan.text.slice(0, 3600)}
+
+STYLE DIRECTION:
+${art.text.slice(0, 1500)}`;
+            const { buf } = await generatePpt(skQuery);
+            const fileName = `deck-${ws.id.slice(0, 8)}-${Date.now()}.pptx`;
+            try { require('fs').writeFileSync(path.join(config.generatedDir, fileName), buf); } catch {}
+            await store.updateOutput(output.id, {
+              title: 'Briefing Deck', file_name: fileName,
+              content: JSON.stringify({ engine: 'skywork', status: 'done' }), file_data: buf,
+            });
+            console.log('[pipeline] Skywork deck ready:', output.id);
+            return;
+          } catch (e) {
+            console.warn('[pipeline] Skywork failed, falling back:', e.message);
+            if (!useManus && !cfg.providers.anthropic.key) throw e;
+          }
+        }
+
+        if (useManus && engine !== 'claude') {
           // Stage 3a (Manus): full production from the pre-made briefs.
           const deckPrompt = `You are the PRODUCTION stage of a three-AI pipeline. A content strategist and an art director have already done their work below. EXECUTE their plan and art direction EXACTLY — every slide, every fact, the palette, typography, motifs and per-slide imagery. Do not redesign; realize their vision at the highest possible craft: cinematic full-bleed backgrounds, layered panels with elegant frames, glowing iconography, perfect visual hierarchy. Every slide fully designed with imagery — nothing plain.
 
@@ -218,8 +250,25 @@ router.get('/:outputId/download', requireWorkspace, async (req, res) => {
     if (o.file_name) return res.download(path.join(config.generatedDir, o.file_name), o.file_name);
     try {
       const meta = JSON.parse(o.content || '{}');
+      if (meta.manus_task_id) {
+        // On-demand recovery: ask Manus right now and grab the deck if it's finished.
+        const { fetchDeckNow } = require('../services/manus');
+        const chk = await fetchDeckNow(meta.manus_task_id).catch(() => null);
+        if (chk && chk.status === 'ready' && chk.buf) {
+          await store.updateOutput(o.id, {
+            title: 'Briefing Deck', file_name: chk.name,
+            file_data: chk.buf, content: JSON.stringify({ ...meta, status: 'done' }),
+          });
+          res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+          res.setHeader('Content-Disposition', `attachment; filename="${chk.name}"`);
+          return res.send(chk.buf);
+        }
+        if (chk && (chk.status === 'running' || chk.status === 'waiting'))
+          return res.status(409).json({ error: 'Still generating — try again in a few minutes.' });
+        return res.status(409).json({ error: 'Not ready yet — try again shortly.' });
+      }
       if (meta.status === 'processing') return res.status(409).json({ error: 'The deck is still being generated — try again shortly.' });
-    } catch {}
+    } catch (e) { if (e && e.statusSent) throw e; }
     return res.status(404).json({ error: 'Deck file not found' });
   }
   const ext = o.format === 'json' ? 'json' : o.format === 'txt' ? 'txt' : o.format === 'svg' ? 'svg' : 'md';

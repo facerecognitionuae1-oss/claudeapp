@@ -23,6 +23,10 @@ module.exports = {
   generatedDir: resolveRuntimePath(process.env.GENERATED_DIR, path.join(persistentDir, 'generated')),
   dataFile: resolveRuntimePath(process.env.DATA_FILE, path.join(persistentDir, 'db.json')),
   maxUploadMb: parseInt(process.env.MAX_UPLOAD_MB || '25', 10),
+  pptEngine: (process.env.PPT_ENGINE || '').toLowerCase(),
+  skywork: {
+    key: process.env.SKYWORK_API_KEY || '',
+  },
   manus: {
     key: process.env.MANUS_API_KEY || '',
     profile: process.env.MANUS_AGENT_PROFILE || 'manus-1.6',
