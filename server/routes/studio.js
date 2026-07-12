@@ -74,12 +74,12 @@ router.post('/', requireWorkspace, async (req, res) => {
     const { manusConfigured, createDeckTask, pollDeck } = require('../services/manus');
     const { skyworkConfigured, generatePpt } = require('../services/skywork');
     const useManus = manusConfigured();
-    // Engine preference: PPT_ENGINE env forces one; otherwise Manus > Skywork > Claude.
+    // Engine preference: PPT_ENGINE env forces one; otherwise Skywork > Manus > Claude.
     const forced = config.pptEngine;
     const engine = (forced === 'skywork' && skyworkConfigured()) ? 'skywork'
       : (forced === 'manus' && useManus) ? 'manus'
       : (forced === 'claude') ? 'claude'
-      : useManus ? 'manus' : skyworkConfigured() ? 'skywork' : 'claude';
+      : skyworkConfigured() ? 'skywork' : useManus ? 'manus' : 'claude';
     const pipeLabel = engine === 'skywork' ? 'GPT+Claude+Skywork' : engine === 'manus' ? 'GPT+Claude+Manus' : 'GPT+Claude';
 
     // Respond IMMEDIATELY — the multi-AI pipeline runs in the background so nothing can time out.
