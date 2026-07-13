@@ -24,6 +24,19 @@ const LANG_RULES = {
 const NO_DOCS_NOTE = `
 NOTE: No documents are uploaded — the employee provided only a written brief. Treat the brief as the task description and produce a useful starting review. You may use general knowledge, but label every such claim [GENERAL KNOWLEDGE] instead of a file citation, keep confidence labels honest, and use the missing-information section to list exactly which documents the employee should obtain before acting.`;
 
+function arabicSlideQualityRule(language) {
+  if (language !== 'ar') return '';
+  return `
+ARABIC RTL SLIDE-COPY QUALITY RULE:
+- Write every Arabic visible slide string in natural Modern Standard Arabic, as it should be read on the final slide.
+- Do not let English brand tokens reverse Arabic word order. Correct example: "تطبيق UAEICP الذكي"; incorrect: "الذكي UAEICP تطبيق".
+- Keep acronyms such as UAEICP, ICP, AI, API as standalone tokens inside Arabic sentences only where useful.
+- Avoid splitting one Arabic phrase across separate text boxes unless the phrase still reads correctly in visual order.
+- Proofread all final visible text before output: fix typos, repeated fragments, broken grammar, and adjective agreement such as "خدمات ذكية" / "الخدمات الذكية".
+- Page numbers must be consistent and not visually reversed; use "٣ / ٨" or "3 / 8", not "٨ / ٣" when the intended meaning is slide 3 of 8.
+- For bilingual slides, keep Arabic and English in separate text runs or clearly separated lines; never interleave them in a way that changes Arabic grammar.`;
+}
+
 const detectLang = text => {
   const s = String(text || '');
   // Explicit request wins: "in arabic" typed in English still means an Arabic answer.
@@ -136,6 +149,7 @@ function contentPlanSystem(language, focused, hasFiles, kind) {
 ${SCOPE_RULES(focused)}
 ${INSTR_RULE}
 ${LANG_RULES[language] || LANG_RULES.auto}
+${arabicSlideQualityRule(language)}
 ${hasFiles ? '' : NO_DOCS_NOTE}
 
 Produce a rigorous, specific ${unit}-by-${unit} CONTENT PLAN in markdown:
@@ -151,6 +165,7 @@ function deckArtSystem(language) {
   return `You are a world-class presentation art director. Given a content plan and source material, write the complete ART DIRECTION for a cinematic, premium slide deck — the caliber of a national-launch keynote or a AAA agency production.
 
 ${LANG_RULES[language] || LANG_RULES.auto} (EXCEPTION: all image prompts are ALWAYS written in English.)
+${arabicSlideQualityRule(language)}
 
 Deliver in markdown:
 1. CONCEPT — one paragraph: the visual story, mood and emotional register.
@@ -169,6 +184,7 @@ function pptxSystem(language, focused, hasFiles) {
 ${SCOPE_RULES(focused)}
 ${INSTR_RULE}
 ${LANG_RULES[language] || LANG_RULES.auto}
+${arabicSlideQualityRule(language)}
 ${hasFiles === false ? NO_DOCS_NOTE : ''}
 
 TOPIC FIDELITY — READ TWICE:
@@ -254,4 +270,4 @@ Design rules — design, design, design:
 - Mark speculation with [SPECULATIVE].`;
 }
 
-module.exports = { baseContext, analysisSystem, chatSystem, studioSystem, pptxSystem, infographicSystem, contentPlanSystem, deckArtSystem, STUDIO_TYPES, detectLang };
+module.exports = { baseContext, analysisSystem, chatSystem, studioSystem, pptxSystem, infographicSystem, contentPlanSystem, deckArtSystem, arabicSlideQualityRule, STUDIO_TYPES, detectLang };

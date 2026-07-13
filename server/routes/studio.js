@@ -5,7 +5,7 @@ const config = require('../config');
 const store = require('../storage');
 const { requireAuth, requireWorkspace } = require('../middleware/auth');
 const ai = require('../services/ai');
-const { baseContext, studioSystem, pptxSystem, infographicSystem, contentPlanSystem, deckArtSystem, STUDIO_TYPES, detectLang } = require('../services/prompts');
+const { baseContext, studioSystem, pptxSystem, infographicSystem, contentPlanSystem, deckArtSystem, arabicSlideQualityRule, STUDIO_TYPES, detectLang } = require('../services/prompts');
 const { buildDeck } = require('../services/pptx');
 
 const REF_PDF = path.join(__dirname, '..', 'reference', 'deck-reference.pdf');
@@ -108,9 +108,11 @@ router.post('/', requireWorkspace, async (req, res) => {
         if (engine === 'skywork') {
           try {
             const skLang = language === 'ar' ? 'Arabic' : 'English';
+            const rtlRule = arabicSlideQualityRule(language);
             const skyworkSlides = Math.max(4, Math.min(20, Number(config.skywork.maxSlides) || 8));
-            const skQuery = `${(instructions || ws.brief || ws.title || 'Briefing deck').trim().slice(0, 1200)} - presentation in ${skLang}. Aim for ${skyworkSlides} highly polished slides unless the user's instructions explicitly require more.${focused ? ' Cover only the points requested above.' : ''}`;
+            const skQuery = `${(instructions || ws.brief || ws.title || 'Briefing deck').trim().slice(0, 1200)} - presentation in ${skLang}. Aim for ${skyworkSlides} highly polished slides unless the user's instructions explicitly require more.${focused ? ' Cover only the points requested above.' : ''}${rtlRule ? '\n\n' + rtlRule : ''}`;
             const skReference = 'BACKGROUND RESEARCH (use freely for facts and data — structure and design are entirely up to you):\n' + plan.text.slice(0, 28000)
+              + (rtlRule ? '\n\nFINAL ARABIC TEXT QA:\n' + rtlRule : '')
               + '\n\nSOURCE MATERIAL:\n' + context.slice(0, 28000);
             let lastProgressWrite = 0;
             const { buf } = await generatePpt({
@@ -155,6 +157,7 @@ router.post('/', requireWorkspace, async (req, res) => {
           const deckPrompt = `You are the PRODUCTION stage of a three-AI pipeline. A content strategist and an art director have already done their work below. EXECUTE their plan and art direction EXACTLY — every slide, every fact, the palette, typography, motifs and per-slide imagery. Do not redesign; realize their vision at the highest possible craft: cinematic full-bleed backgrounds, layered panels with elegant frames, glowing iconography, perfect visual hierarchy. Every slide fully designed with imagery — nothing plain.
 
 LANGUAGE: the entire deck must be in ${language === 'ar' ? 'Arabic' : 'English'}.
+${arabicSlideQualityRule(language)}
 SPEED: all research and design decisions are already made below — do NOT conduct web research; go straight to production.
 DELIVERABLE: the final editable .pptx file, with speaker notes, ending with a References slide.
 
