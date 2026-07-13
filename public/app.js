@@ -265,7 +265,7 @@
               <label class="cbtn" title="${t('attachFiles')}">\u{1F4CE}<input type="file" multiple hidden onchange="A.attachAssist(this)"></label>
               <div class="grow"></div>
               <button type="button" class="cbtn web-toggle ${S.web ? 'on' : ''}" title="${S.searchAvailable ? t('webSearch') : t('webNotConfigured')}" onclick="A.toggleWeb()" ${S.searchAvailable ? '' : 'disabled'}>🌐</button>
-              <button type="button" class="cbtn" id="mic-btn" title="${t('voiceInput')}" onclick="A.toggleMic()">\u{1F3A4}</button>
+              <button type="button" class="cbtn" id="mic-btn" title="${t('voiceInput')}" onclick="A.toggleMic()">🎙</button>
               <button class="send-btn" ${busy ? 'disabled' : ''} title="${t('send')}">\u2191</button>
             </div>
           </form>`;
