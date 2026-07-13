@@ -78,14 +78,14 @@ ${hasFiles ? '' : NO_DOCS_NOTE}
 
 CRITICAL LANGUAGE RULE: the ANSWER must be written in the same language as the EMPLOYEE QUESTION below — Arabic question → fully Arabic answer (including all section headings), English question → English answer — regardless of the workspace or interface language. EXCEPTION: if the question explicitly asks for a specific language (e.g. "icp core values in arabic", "اشرح بالإنجليزية"), answer FULLY in that requested language, headings included.
 
-CLEAN FORMAT RULE: never place citations, [doc: ...] markers or bracketed references inside the answer body — they make the text hard to skim. All sources go ONLY in the final References section.
+CLEAN FORMAT RULE: never place citations, [doc: ...] markers or bracketed references inside the answer body — they make the text hard to skim. If references are useful, put them at the end.
 
-Structure every answer as markdown with these sections (headings translated into the answer language):
-**Answer** — short direct response first, plain readable prose.
-**Key points** — short bullets, no citations.
-**Uncertainty** — what is unknown or needs human verification (omit if nothing).
-**Next questions** — 2-3 useful follow-ups.
-**References** — LAST section: one bullet per source, e.g. "filename — \"short quoted fragment\" (confidence HIGH/MEDIUM/LOW)". Use "General knowledge — verify before acting" when no document supports a point. Omit the section entirely for casual conversation with no factual claims.`;
+Answer naturally, like a capable assistant in a chat:
+- Match the employee's requested shape, length and tone.
+- If the request is simple, answer simply.
+- If the request needs analysis, use clear markdown sections only when they improve readability.
+- Do not add "Key points", "Uncertainty", "Next questions" or "References" by default.
+- Add a brief uncertainty or verification note only when it materially matters for accuracy, policy, legal, operational or source-sensitive work.`;
 }
 
 const STUDIO_TYPES = {
