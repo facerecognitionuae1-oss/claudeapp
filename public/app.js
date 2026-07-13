@@ -252,7 +252,10 @@
       <div class="assist-open">
         <aside class="chat-side">
           <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="A.newChat()" ${S.busy.newChat ? 'disabled' : ''}>${S.busy.newChat ? `<span class="spinner"></span> ${t('creating')}` : `+ ${t('newChat')}`}</button>
-          ${visibleChats.map(c => `<div class="chat-item ${b && b.workspace.id === c.id ? 'active' : ''}" onclick="A.openChat('${c.id}')"><div class="ci-title">${esc(c.title)}</div><div class="ci-when">${new Date(c.updated_at).toLocaleDateString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</div></div>`).join('')}
+          ${visibleChats.map(c => `<div class="chat-item ${b && b.workspace.id === c.id ? 'active' : ''}" onclick="A.openChat('${c.id}')">
+            <div class="ci-main"><div class="ci-title">${esc(c.title)}</div><div class="ci-when">${new Date(c.updated_at).toLocaleDateString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</div></div>
+            <button type="button" class="ci-delete" title="${t('delete')}" onclick="event.stopPropagation();A.deleteChat('${c.id}')">×</button>
+          </div>`).join('')}
           ${S.chats.length > visibleChats.length ? `<div class="history-trim">${S.chats.length - visibleChats.length} older chats hidden for speed.</div>` : ''}
         </aside>
         <section class="chat-main ${empty ? 'empty' : ''}">
@@ -1144,6 +1147,20 @@
     async openChat(id) {
       try { S.assistTempMessages = []; S.chatWs = await api('/workspaces/' + id); render(); }
       catch (err) { toast(err.message, true); }
+    },
+    async deleteChat(id) {
+      if (!confirm(t('confirmDelete'))) return;
+      try {
+        await api('/workspaces/' + id, { method: 'DELETE' });
+        S.chats = S.chats.filter(c => c.id !== id);
+        if (S.chatWs && S.chatWs.workspace.id === id) {
+          S.chatWs = null;
+          S.assistTempMessages = [];
+          S.assistDraft = '';
+          S.assistPending = [];
+        }
+        render();
+      } catch (err) { toast(err.message, true); }
     },
     draftAssist(v) { S.assistDraft = v; },
     attachAssist(input) {

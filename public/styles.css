@@ -316,12 +316,16 @@ table.admin td { padding: 11px 14px; border-bottom: 1px solid var(--line); }
 .assist-grid { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 16px; height: calc(100vh - 148px); min-height: 460px; }
 @media (max-width: 820px) { .assist-grid { grid-template-columns: 1fr; height: auto; } .chat-list { max-height: 200px; } }
 .chat-list { overflow-y: auto; }
-.chat-item { padding: 10px 14px; border-bottom: 1px solid var(--line); cursor: pointer; transition: .12s; }
+.chat-item { padding: 10px 14px; border-bottom: 1px solid var(--line); cursor: pointer; transition: .12s; display: flex; align-items: center; gap: 8px; }
 .chat-item:hover { background: var(--gold-tint); }
 .chat-item.active { background: var(--gold-tint); box-shadow: inset 3px 0 0 var(--gold); }
 [dir="rtl"] .chat-item.active { box-shadow: inset -3px 0 0 var(--gold); }
+.chat-item .ci-main { min-width: 0; flex: 1; }
 .chat-item .ci-title { font-size: 13.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-item .ci-when { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.ci-delete { width: 28px; height: 28px; border: none; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; opacity: 0; flex: 0 0 auto; }
+.chat-item:hover .ci-delete, .chat-item:focus-within .ci-delete { opacity: 1; }
+.ci-delete:hover { background: #fde8e8; color: #b42318; }
 .assist-box { display: flex; flex-direction: column; min-height: 460px; }
 .assist-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
 .assist-outs { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--gold-tint); }
