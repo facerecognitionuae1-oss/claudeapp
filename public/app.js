@@ -12,7 +12,7 @@
     providers: [],
     provider: localStorage.getItem('provider') || 'demo',
     busy: {},
-    logo: '/assets/logo.svg',
+    logo: '/assets/logo.png',
     pendingFiles: [],
     draft: {},
     createStep: '',
@@ -225,48 +225,57 @@
     const outputs = b ? b.outputs : [];
     const visibleChats = S.chats.slice(0, 80);
     const messages = (b ? b.messages : []).concat(S.assistTempMessages || []);
+    const empty = messages.length === 0;
+    const hour = new Date().getHours();
+    const greet = t(hour < 12 ? 'greetMorning' : hour < 17 ? 'greetAfternoon' : 'greetEvening');
+    const firstName = ((S.user && (S.user.full_name || S.user.username)) || '').trim().split(/\s+/)[0];
+    const composer = `
+          <form class="composer" onsubmit="A.sendAssist(event)">
+            ${(S.assistPending && S.assistPending.length) ? `<div class="chat-attach">${S.assistPending.map((f, i) =>
+              `<span class="chip">\u{1F4CE} ${esc(f.name)} <b title="remove" onclick="A.removeAttach(${i})">\u00D7</b></span>`).join('')}</div>` : ''}
+            <textarea name="q" rows="1" placeholder="${t('typeMessage')}" ${busy ? 'disabled' : ''}
+              oninput="A.draftAssist(this.value);this.style.height='auto';this.style.height=Math.min(this.scrollHeight,180)+'px'"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.requestSubmit();}">${esc(S.assistDraft || '')}</textarea>
+            <div class="composer-bar">
+              <label class="cbtn" title="${t('attachFiles')}">\u{1F4CE}<input type="file" multiple hidden onchange="A.attachAssist(this)"></label>
+              <div class="grow"></div>
+              <button type="button" class="cbtn" id="mic-btn" title="${t('voiceInput')}" onclick="A.toggleMic()">\u{1F3A4}</button>
+              <button class="send-btn" ${busy ? 'disabled' : ''} title="${t('send')}">\u2191</button>
+            </div>
+          </form>`;
     return `
-      <div class="assist-grid">
-        <div class="card chat-list">
-          <div style="padding:12px"><button class="btn btn-primary" style="width:100%" onclick="A.newChat()" ${S.busy.newChat ? 'disabled' : ''}>${S.busy.newChat ? `<span class="spinner"></span> ${t('creating')}` : `+ ${t('newChat')}`}</button></div>
+      <div class="assist-open">
+        <aside class="chat-side">
+          <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="A.newChat()" ${S.busy.newChat ? 'disabled' : ''}>${S.busy.newChat ? `<span class="spinner"></span> ${t('creating')}` : `+ ${t('newChat')}`}</button>
           ${visibleChats.map(c => `<div class="chat-item ${b && b.workspace.id === c.id ? 'active' : ''}" onclick="A.openChat('${c.id}')"><div class="ci-title">${esc(c.title)}</div><div class="ci-when">${new Date(c.updated_at).toLocaleDateString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</div></div>`).join('')}
           ${S.chats.length > visibleChats.length ? `<div class="history-trim">${S.chats.length - visibleChats.length} older chats hidden for speed.</div>` : ''}
-        </div>
-        <div class="card assist-box">
-          <div class="assist-head">
-            <strong>${b ? esc(b.workspace.title) : t('assistant')}</strong>
+        </aside>
+        <section class="chat-main ${empty ? 'empty' : ''}">
+          ${b && !empty ? `<div class="chat-topbar">
+            <strong>${esc(b.workspace.title)}</strong>
             <div class="grow"></div>
             ${S.busy.gen ? `<span class="spinner dark"></span>` : ''}
-            ${b && b.messages.length ? `<button class="btn btn-dark btn-sm" onclick="A.openGenFromChat()">✦ ${t('makeFromChat')}</button>` : ''}
-          </div>
+            <button class="btn btn-dark btn-sm" onclick="A.openGenFromChat()">\u2726 ${t('makeFromChat')}</button>
+          </div>` : ''}
           ${outputs.length ? `<div class="assist-outs">${outputs.map(o => { const oi = outInfo(o); return oi.ready
-              ? `<button class="btn btn-ghost btn-sm" onclick="A.downloadChatOutput('${o.id}')">⬇ ${esc(o.title)}</button>`
+              ? `<button class="btn btn-ghost btn-sm" onclick="A.downloadChatOutput('${o.id}')">\u2B07 ${esc(o.title)}</button>`
               : oi.processing
                 ? `<span class="btn btn-ghost btn-sm" style="cursor:default;opacity:.75"><span class="spinner dark" style="width:12px;height:12px"></span> ${t('generating')} ${esc(o.title)}</span>`
-                : `<button class="btn btn-ghost btn-sm" onclick="A.downloadChatOutput('${o.id}')">↻ ${esc(o.title)}</button>`; }).join('')}</div>` : ''}
-          <div class="chat-log" id="assist-log">
-            ${messages.length === 0 ? `
-            <div class="empty-state">
-              <div class="big">💬</div>
-              <strong style="color:var(--black);font-size:17px">${t('chatWelcomeTitle')}</strong>
-              <div style="max-width:480px;margin:10px auto 0">${t('chatWelcomeBody')}</div>
-            </div>` : ''}
-            ${renderMsgList(messages, false)}
-            ${busy ? `<div class="msg assistant typing-msg"><span class="typing"><span></span><span></span><span></span></span></div>` : ''}
+                : `<button class="btn btn-ghost btn-sm" onclick="A.downloadChatOutput('${o.id}')">\u21BB ${esc(o.title)}</button>`; }).join('')}</div>` : ''}
+          <div class="chat-scroll" id="assist-log">
+            ${empty ? `
+            <div class="greet">
+              <div class="greet-ico">\u{1F916}</div>
+              <h1>${esc(greet)}${firstName ? ', ' + esc(firstName) : ''}</h1>
+              <p>${t('chatWelcomeBody')}</p>
+            </div>` : `
+            <div class="chat-col">
+              ${renderMsgList(messages, false)}
+              ${busy ? `<div class="msg assistant typing-msg"><span class="typing"><span></span><span></span><span></span></span></div>` : ''}
+            </div>`}
           </div>
-          <form class="chat-input chat-col" onsubmit="A.sendAssist(event)">
-            ${(S.assistPending && S.assistPending.length) ? `<div class="chat-attach">${S.assistPending.map((f, i) =>
-              `<span class="chip">📎 ${esc(f.name)} <b title="remove" onclick="A.removeAttach(${i})">×</b></span>`).join('')}</div>` : ''}
-            <div class="chat-row">
-              <label class="icon-btn" title="${t('attachFiles')}">📎<input type="file" multiple hidden onchange="A.attachAssist(this)"></label>
-              <textarea class="input" name="q" placeholder="${t('typeMessage')}" ${busy ? 'disabled' : ''}
-                oninput="A.draftAssist(this.value)"
-                onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.requestSubmit();}">${esc(S.assistDraft || '')}</textarea>
-              <button type="button" class="icon-btn" id="mic-btn" title="${t('voiceInput')}" onclick="A.toggleMic()">🎤</button>
-              <button class="btn btn-primary" ${busy ? 'disabled' : ''}>${t('send')}</button>
-            </div>
-          </form>
-        </div>
+          ${composer}
+        </section>
       </div>`;
   }
 
@@ -1146,7 +1155,7 @@
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SR) return toast(t('voiceNotSupported'), true);
       if (S.recog) { try { S.recog.stop(); } catch {} return; }
-      const ta = document.querySelector('.chat-input textarea[name=q]');
+      const ta = document.querySelector('textarea[name=q]');
       const btn = document.getElementById('mic-btn');
       if (!ta) return;
       const r = new SR();
@@ -1195,6 +1204,7 @@
           else q = q + '\n\n📎 ' + pend.map(f => f.name).join(', ');
           S.assistPending = [];
         }
+        S.assistDraft = '';
         S.scrollTarget = 'assist-bottom';
         render();
         const r = await api(`/workspaces/${S.chatWs.workspace.id}/chat`, { method: 'POST', body: JSON.stringify({ question: q, provider: S.provider, web: S.web }) });
