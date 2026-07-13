@@ -32,9 +32,17 @@ const detectLang = text => {
   return /[؀-ۿ]/.test(s) ? 'ar' : (/[A-Za-z]/.test(s) ? 'en' : null);
 };
 
-function baseContext(workspace, files) {
+function baseContext(workspace, files, perFileChars = 60000, totalFileChars = Infinity) {
+  let used = 0;
   const docs = (files || [])
-    .map(f => `=== DOCUMENT: ${f.original_name} ===\n${(f.extracted_text || '').slice(0, 60000)}`)
+    .map(f => {
+      const remaining = Math.max(0, totalFileChars - used);
+      if (!remaining) return '';
+      const text = (f.extracted_text || '').slice(0, Math.min(perFileChars, remaining));
+      used += text.length;
+      return `=== DOCUMENT: ${f.original_name} ===\n${text}`;
+    })
+    .filter(Boolean)
     .join('\n\n');
   return `WORKSPACE TITLE: ${workspace.title}
 USER BRIEF:

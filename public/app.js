@@ -223,6 +223,7 @@
           ${S.providers.map(p => `<option value="${p.id}" ${p.id === S.provider ? 'selected' : ''}>${esc(p.label)}${p.configured ? '' : ' ⚠'}</option>`).join('')}
         </select>
         ${langSelect('')}
+        <button class="web-toggle ${S.web ? 'on' : ''}" title="${S.searchAvailable ? t('webSearch') : t('webNotConfigured')}" onclick="A.toggleWeb()" ${S.searchAvailable ? '' : 'disabled'}>🌐</button>
         <span class="user">${esc(u.full_name || u.username)}</span>
         <button class="btn btn-ghost btn-sm" title="${t('changePassword')}" onclick="A.openChangePw()">🔑</button>
         <button class="btn btn-primary btn-sm" onclick="A.logout()">${t('logout')}</button>
@@ -816,6 +817,12 @@
     setLang,
     logout,
     setProvider(p) { S.provider = p; localStorage.setItem('provider', p); },
+    toggleWeb() {
+      if (!S.searchAvailable) return toast(t('webNotConfigured'), true);
+      S.web = !S.web;
+      localStorage.setItem('web', S.web ? '1' : '0');
+      render();
+    },
     // Never default to demo when a real provider is configured
     _normalizeProvider() {
       const cur = S.providers.find(p => p.id === S.provider);
@@ -992,10 +999,11 @@
       try {
         const r = await api(`/workspaces/${S.ws.workspace.id}/chat`, { method: 'POST', body: JSON.stringify({ question: q, provider: S.provider, web: S.web }) });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true);
+        S.ws.messages = S.ws.messages.filter(m => m.id !== 'tmp').concat([r.question, r.answer]);
       } catch (err) { toast(err.message, true); }
       S.busy.chat = false;
       S.scrollTarget = 'chat-answer';
-      await A.refreshWs();
+      render();
     },
 
     async generate(e) {
@@ -1243,13 +1251,10 @@
         render();
         const r = await api(`/workspaces/${S.chatWs.workspace.id}/chat`, { method: 'POST', body: JSON.stringify({ question: q, provider: S.provider, web: S.web }) });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true);
+        S.chatWs.messages = S.chatWs.messages.filter(m => !String(m.id || '').startsWith('tmp-')).concat([r.question, r.answer]);
       } catch (err) { toast(err.message, true); }
       finally {
         S.busy.assist = false;
-        if (S.chatWs) {
-          try { S.chatWs = await api('/workspaces/' + S.chatWs.workspace.id); }
-          catch (err) { toast(err.message, true); }
-        }
         S.assistTempMessages = [];
       }
       S.scrollTarget = 'assist-answer';

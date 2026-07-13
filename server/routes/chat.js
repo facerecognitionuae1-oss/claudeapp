@@ -25,16 +25,16 @@ router.post('/', requireWorkspace, async (req, res) => {
 
   const files = await store.listFiles(ws.id);
   const history = (await store.listMessages(ws.id)).slice(-10);
-  const historyText = history.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
+  const historyText = history.map(m => `${m.role.toUpperCase()}: ${String(m.content || '').slice(0, 1200)}`).join('\n\n');
 
   const userMsg = await store.addMessage({
     id: uuid(), workspace_id: ws.id, role: 'user', content: question.trim(),
     provider: '', model: '', mode, created_at: new Date().toISOString(),
   });
 
-  // Live web search runs automatically whenever a search key is configured.
+  // Live web search is opt-in from the globe toggle.
   let webBlock = '';
-  {
+  if (req.body?.web === true) {
     const { webSearch, formatSearch, searchConfigured } = require('../services/search');
     if (searchConfigured()) {
       const found = await webSearch(question.trim());
@@ -42,7 +42,7 @@ router.post('/', requireWorkspace, async (req, res) => {
     }
   }
   const system = chatSystem(mode, language, files.length > 0);
-  const user = `${baseContext(ws, files)}${webBlock}
+  const user = `${baseContext(ws, files, 8000, 24000)}${webBlock}
 
 RECENT CONVERSATION:
 ${historyText || '(none)'}
