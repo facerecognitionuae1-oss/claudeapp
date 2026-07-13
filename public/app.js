@@ -199,7 +199,7 @@
     return `
       <div class="assist-grid">
         <div class="card chat-list">
-          <div style="padding:12px"><button class="btn btn-primary" style="width:100%" onclick="A.newChat()">+ ${t('newChat')}</button></div>
+          <div style="padding:12px"><button class="btn btn-primary" style="width:100%" onclick="A.newChat()" ${S.busy.newChat ? 'disabled' : ''}>${S.busy.newChat ? `<span class="spinner"></span> ${t('creating')}` : `+ ${t('newChat')}`}</button></div>
           ${S.chats.map(c => `<div class="chat-item ${b && b.workspace.id === c.id ? 'active' : ''}" onclick="A.openChat('${c.id}')"><div class="ci-title">${esc(c.title)}</div><div class="ci-when">${new Date(c.updated_at).toLocaleDateString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</div></div>`).join('')}
         </div>
         <div class="card assist-box">
@@ -1062,7 +1062,25 @@
         S.view = 'assistant'; render();
       } catch (err) { toast(err.message, true); }
     },
-    newChat() { S.chatWs = null; S.assistPending = []; S.assistDraft = ''; render(); },
+    async newChat() {
+      if (S.busy.newChat) return;
+      S.busy.newChat = true;
+      S.assistPending = [];
+      S.assistDraft = '';
+      try {
+        const data = await api('/workspaces', {
+          method: 'POST',
+          body: JSON.stringify({ title: t('newChat'), kind: 'chat', language: S.lang, mode: 'unguarded' }),
+        });
+        S.chats.unshift(data.workspace);
+        S.chatWs = await api('/workspaces/' + data.workspace.id);
+      } catch (err) {
+        toast(err.message, true);
+      } finally {
+        S.busy.newChat = false;
+        render();
+      }
+    },
     async openChat(id) {
       try { S.chatWs = await api('/workspaces/' + id); render(); }
       catch (err) { toast(err.message, true); }
