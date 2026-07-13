@@ -31,6 +31,7 @@ ARABIC RTL SLIDE-COPY QUALITY RULE:
 - Write every Arabic visible slide string in natural Modern Standard Arabic, as it should be read on the final slide.
 - Do not let English brand tokens reverse Arabic word order. Correct example: "تطبيق UAEICP الذكي"; incorrect: "الذكي UAEICP تطبيق".
 - Keep acronyms such as UAEICP, ICP, AI, API as standalone tokens inside Arabic sentences only where useful.
+- Do not use harakat/tashkeel/Arabic diacritics in slide text unless the employee explicitly asks for them.
 - Avoid splitting one Arabic phrase across separate text boxes unless the phrase still reads correctly in visual order.
 - Proofread all final visible text before output: fix typos, repeated fragments, broken grammar, and adjective agreement such as "خدمات ذكية" / "الخدمات الذكية".
 - Page numbers must be consistent and not visually reversed; use "٣ / ٨" or "3 / 8", not "٨ / ٣" when the intended meaning is slide 3 of 8.
