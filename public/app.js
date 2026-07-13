@@ -223,7 +223,6 @@
           ${S.providers.map(p => `<option value="${p.id}" ${p.id === S.provider ? 'selected' : ''}>${esc(p.label)}${p.configured ? '' : ' ⚠'}</option>`).join('')}
         </select>
         ${langSelect('')}
-        <button class="web-toggle ${S.web ? 'on' : ''}" title="${S.searchAvailable ? t('webSearch') : t('webNotConfigured')}" onclick="A.toggleWeb()" ${S.searchAvailable ? '' : 'disabled'}>🌐</button>
         <span class="user">${esc(u.full_name || u.username)}</span>
         <button class="btn btn-ghost btn-sm" title="${t('changePassword')}" onclick="A.openChangePw()">🔑</button>
         <button class="btn btn-primary btn-sm" onclick="A.logout()">${t('logout')}</button>
@@ -265,6 +264,7 @@
             <div class="composer-bar">
               <label class="cbtn" title="${t('attachFiles')}">\u{1F4CE}<input type="file" multiple hidden onchange="A.attachAssist(this)"></label>
               <div class="grow"></div>
+              <button type="button" class="cbtn web-toggle ${S.web ? 'on' : ''}" title="${S.searchAvailable ? t('webSearch') : t('webNotConfigured')}" onclick="A.toggleWeb()" ${S.searchAvailable ? '' : 'disabled'}>🌐</button>
               <button type="button" class="cbtn" id="mic-btn" title="${t('voiceInput')}" onclick="A.toggleMic()">\u{1F3A4}</button>
               <button class="send-btn" ${busy ? 'disabled' : ''} title="${t('send')}">\u2191</button>
             </div>
@@ -606,6 +606,7 @@
         <form class="chat-input" onsubmit="A.ask(event)">
           <textarea class="input" name="q" placeholder="${t('askPlaceholder')}" ${busy ? 'disabled' : ''}
             onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.requestSubmit();}"></textarea>
+          <button type="button" class="icon-btn web-toggle ${S.web ? 'on' : ''}" title="${S.searchAvailable ? t('webSearch') : t('webNotConfigured')}" onclick="A.toggleWeb()" ${S.searchAvailable ? '' : 'disabled'}>🌐</button>
           <button class="btn btn-primary" ${busy ? 'disabled' : ''}>${t('send')}</button>
         </form>
       </div>`;
