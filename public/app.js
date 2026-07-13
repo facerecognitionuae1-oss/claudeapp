@@ -25,6 +25,7 @@
     scrollTarget: '',
     msgHtmlCache: new Map(),
     assistTempMessages: [],
+    chatHistoryOpen: false,
   };
 
   const t = k => (I18N[S.lang] && I18N[S.lang][k]) || I18N.en[k] || k;
@@ -250,7 +251,12 @@
           </form>`;
     return `
       <div class="assist-open">
-        <aside class="chat-side">
+        ${S.chatHistoryOpen ? `<button type="button" class="chat-scrim" onclick="A.toggleChatHistory(false)" aria-label="${t('close')}"></button>` : ''}
+        <aside class="chat-side ${S.chatHistoryOpen ? 'open' : ''}">
+          <div class="chat-side-head">
+            <strong>${t('chatHistory')}</strong>
+            <button type="button" class="ci-delete always" title="${t('close')}" onclick="A.toggleChatHistory(false)">×</button>
+          </div>
           <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="A.newChat()" ${S.busy.newChat ? 'disabled' : ''}>${S.busy.newChat ? `<span class="spinner"></span> ${t('creating')}` : `+ ${t('newChat')}`}</button>
           ${visibleChats.map(c => `<div class="chat-item ${b && b.workspace.id === c.id ? 'active' : ''}" onclick="A.openChat('${c.id}')">
             <div class="ci-main"><div class="ci-title">${esc(c.title)}</div><div class="ci-when">${new Date(c.updated_at).toLocaleDateString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</div></div>
@@ -259,12 +265,13 @@
           ${S.chats.length > visibleChats.length ? `<div class="history-trim">${S.chats.length - visibleChats.length} older chats hidden for speed.</div>` : ''}
         </aside>
         <section class="chat-main ${empty ? 'empty' : ''}">
-          ${b && !empty ? `<div class="chat-topbar">
-            <strong>${esc(b.workspace.title)}</strong>
+          <div class="chat-topbar">
+            <strong>${b ? esc(b.workspace.title) : t('assistant')}</strong>
             <div class="grow"></div>
             ${S.busy.gen ? `<span class="spinner dark"></span>` : ''}
-            <button class="btn btn-dark btn-sm" onclick="A.openGenFromChat()">\u2726 ${t('makeFromChat')}</button>
-          </div>` : ''}
+            ${b && !empty ? `<button class="btn btn-dark btn-sm" onclick="A.openGenFromChat()">\u2726 ${t('makeFromChat')}</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="A.toggleChatHistory()">☰ ${t('chatHistory')}</button>
+          </div>
           ${outputs.length ? `<div class="assist-outs">${outputs.map(o => { const oi = outInfo(o); return oi.ready
               ? `<button class="btn btn-ghost btn-sm" onclick="A.downloadChatOutput('${o.id}')">\u2B07 ${esc(o.title)}</button>`
               : oi.processing
@@ -1116,6 +1123,10 @@
     downloadStudioHomeOutput(id) { A._download(`/api/workspaces/${S.studioWs.workspace.id}/studio/${id}/download`); },
 
     // assistant (general chat)
+    toggleChatHistory(force) {
+      S.chatHistoryOpen = typeof force === 'boolean' ? force : !S.chatHistoryOpen;
+      render();
+    },
     async loadAssistant(background) {
       try {
         const data = await api('/workspaces');
@@ -1137,6 +1148,7 @@
         });
         S.chats.unshift(data.workspace);
         S.chatWs = await api('/workspaces/' + data.workspace.id);
+        S.chatHistoryOpen = false;
       } catch (err) {
         toast(err.message, true);
       } finally {
@@ -1145,7 +1157,7 @@
       }
     },
     async openChat(id) {
-      try { S.assistTempMessages = []; S.chatWs = await api('/workspaces/' + id); render(); }
+      try { S.assistTempMessages = []; S.chatWs = await api('/workspaces/' + id); S.chatHistoryOpen = false; render(); }
       catch (err) { toast(err.message, true); }
     },
     async deleteChat(id) {
