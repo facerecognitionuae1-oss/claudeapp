@@ -228,7 +228,12 @@
     const empty = messages.length === 0;
     const hour = new Date().getHours();
     const greet = t(hour < 12 ? 'greetMorning' : hour < 17 ? 'greetAfternoon' : 'greetEvening');
-    const firstName = ((S.user && (S.user.full_name || S.user.username)) || '').trim().split(/\s+/)[0];
+    const displayName = ((S.user && (S.user.username || S.user.full_name)) || '').trim().split(/\s+/)[0];
+    const greetingText = displayName
+      ? (S.lang === 'ar'
+        ? `${greet}، <bdi>${esc(displayName)}</bdi>`
+        : `${greet}, <bdi>${esc(displayName)}</bdi>`)
+      : esc(greet);
     const composer = `
           <form class="composer" onsubmit="A.sendAssist(event)">
             ${(S.assistPending && S.assistPending.length) ? `<div class="chat-attach">${S.assistPending.map((f, i) =>
@@ -266,7 +271,7 @@
             ${empty ? `
             <div class="greet">
               <div class="greet-ico">\u{1F916}</div>
-              <h1>${esc(greet)}${firstName ? ', ' + esc(firstName) : ''}</h1>
+              <h1>${greetingText}</h1>
               <p>${t('chatWelcomeBody')}</p>
             </div>` : `
             <div class="chat-col">

@@ -391,6 +391,7 @@ details.a-more .a-section { border-top: 1px dashed var(--line); }
 .greet { margin: auto; text-align: center; padding: 20px; }
 .greet-ico { font-size: 44px; }
 .greet h1 { font-size: clamp(26px, 4vw, 38px); color: var(--black); margin: 14px 0 10px; font-weight: 700; }
+.greet h1 bdi { unicode-bidi: isolate; }
 .greet p { color: var(--muted); max-width: 460px; margin: 0 auto; font-size: 14.5px; line-height: 1.7; }
 .composer { width: 100%; max-width: 800px; margin: 10px auto 2px; background: #fff; border: 1px solid var(--line); border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,.08); padding: 14px 16px 10px; display: flex; flex-direction: column; gap: 6px; }
 .composer:focus-within { border-color: var(--gold); }
