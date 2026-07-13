@@ -22,6 +22,7 @@
     studioDraft: '',
     web: localStorage.getItem('web') === '1',
     searchAvailable: false,
+    scrollTarget: '',
   };
 
   const t = k => (I18N[S.lang] && I18N[S.lang][k]) || I18N.en[k] || k;
@@ -717,12 +718,25 @@
     else if (S.view === 'workspace') content = wsView();
     else if (S.view === 'admin') content = adminView();
     app.innerHTML = shell(content) + (S.modal || '');
-    const log = $('#chat-log');
-    if (log) log.scrollTop = log.scrollHeight;
-    const alog = $('#assist-log');
-    if (alog) alog.scrollTop = alog.scrollHeight;
     bindDropzone();
+    applyScrollTarget();
     scheduleOutputPoll();
+  }
+
+  function applyScrollTarget() {
+    const target = S.scrollTarget;
+    S.scrollTarget = '';
+    if (!target) return;
+    const isAssist = target.startsWith('assist');
+    const log = $(isAssist ? '#assist-log' : '#chat-log');
+    if (!log) return;
+    if (target.endsWith('bottom')) {
+      log.scrollTop = log.scrollHeight;
+      return;
+    }
+    const messages = log.querySelectorAll('.msg.assistant:not(.typing-msg)');
+    const msg = messages[messages.length - 1];
+    if (msg) log.scrollTop = Math.max(0, msg.offsetTop - log.offsetTop - 8);
   }
 
   // While a deck is generating, silently re-fetch the current workspace every 30s.
@@ -919,12 +933,13 @@
       e.preventDefault();
       const ta = e.target.q; const q = ta.value.trim(); if (!q) return;
       S.ws.messages.push({ id: 'tmp', role: 'user', content: q, created_at: new Date().toISOString() });
-      S.busy.chat = true; render();
+      S.busy.chat = true; S.scrollTarget = 'chat-bottom'; render();
       try {
         const r = await api(`/workspaces/${S.ws.workspace.id}/chat`, { method: 'POST', body: JSON.stringify({ question: q, provider: S.provider, web: S.web }) });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true);
       } catch (err) { toast(err.message, true); }
       S.busy.chat = false;
+      S.scrollTarget = 'chat-answer';
       await A.refreshWs();
     },
 
@@ -1131,6 +1146,7 @@
       if (!q && !pend.length) return;
       if (S.recog) { try { S.recog.stop(); } catch {} }
       S.busy.assist = true;
+      S.scrollTarget = 'assist-bottom';
       render();
       try {
         if (!S.chatWs) {
@@ -1149,6 +1165,7 @@
         }
         S.assistDraft = '';
         S.chatWs.messages.push({ id: 'tmp', role: 'user', content: q, created_at: new Date().toISOString() });
+        S.scrollTarget = 'assist-bottom';
         render();
         const r = await api(`/workspaces/${S.chatWs.workspace.id}/chat`, { method: 'POST', body: JSON.stringify({ question: q, provider: S.provider, web: S.web }) });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true);
@@ -1160,6 +1177,7 @@
           catch (err) { toast(err.message, true); }
         }
       }
+      S.scrollTarget = 'assist-answer';
       render();
     },
     openGenFromChat() {
