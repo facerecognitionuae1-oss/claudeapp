@@ -257,14 +257,21 @@ label.f { display: block; font-size: 13px; font-weight: 700; color: var(--black)
 [dir="rtl"] .msg.user { align-self: flex-start; }
 .msg.assistant { align-self: flex-start; background: #fff; border: 1px solid var(--line); border-end-start-radius: 4px; }
 [dir="rtl"] .msg.assistant { align-self: flex-end; }
+.msg.rtl { direction: rtl; text-align: start; unicode-bidi: plaintext; }
+.msg.ltr { direction: ltr; text-align: start; unicode-bidi: plaintext; }
 .msg .who { font-size: 11px; opacity: .65; margin-bottom: 5px; font-weight: 700; }
+.msg.rtl .who { direction: ltr; unicode-bidi: isolate; }
 .msg :is(h1,h2,h3,h4) { font-size: 14px; margin: 10px 0 4px; color: var(--gold-deep); }
 .msg.user :is(h1,h2,h3,h4) { color: var(--gold-light); }
 .msg ul, .msg ol { padding-inline-start: 20px; margin: 6px 0; }
+.msg.rtl ul, .msg.rtl ol { padding-inline-start: 0; padding-inline-end: 22px; }
+.msg.rtl li { text-align: start; }
 .msg p { margin: 6px 0; }
 .msg code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; font-size: 13px; overflow-wrap: anywhere; }
+.msg.rtl code { direction: ltr; unicode-bidi: isolate; }
 .msg.user code { background: rgba(255,255,255,.15); }
 .msg table { display: block; overflow-x: auto; max-width: 100%; border-collapse: collapse; margin: 8px 0; }
+.msg.rtl table { direction: rtl; }
 .msg td, .msg th { border: 1px solid var(--line); padding: 5px 9px; font-size: 13px; }
 .chat-input { display: flex; gap: 10px; padding: 14px; border-top: 1px solid var(--line); background: #fff; border-radius: 0 0 var(--radius) var(--radius); }
 .chat-input textarea { flex: 1; resize: none; height: 52px; min-width: 0; }

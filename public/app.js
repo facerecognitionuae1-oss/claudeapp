@@ -29,6 +29,8 @@
   const app = document.getElementById('app');
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const attrJson = v => JSON.stringify(v).replace(/"/g, '&quot;');
+  const isRtlText = s => /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(String(s || ''));
+  const msgDir = s => isRtlText(s) ? 'rtl' : 'ltr';
   const outputMeta = o => { try { return JSON.parse(o.content || '{}'); } catch { return {}; } };
   // pptx outputs are ready only once a file exists; Manus decks generate in the background
   const outInfo = o => {
@@ -68,6 +70,8 @@
   function md(src) {
     const lines = String(src || '').split('\n');
     let html = '', inUl = false, inOl = false, inTable = false;
+    const ulRe = /^\s*(?:[-*]|[•–—])\s+/;
+    const olRe = /^\s*(?:\d+|[٠-٩]+|[۰-۹]+)[.)]\s+/;
     const closeLists = () => { if (inUl) { html += '</ul>'; inUl = false; } if (inOl) { html += '</ol>'; inOl = false; } if (inTable) { html += '</table>'; inTable = false; } };
     const inline = s => esc(s)
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
@@ -85,8 +89,8 @@
       if (inTable) { html += '</table>'; inTable = false; }
       const h = line.match(/^(#{1,4})\s+(.*)/);
       if (h) { closeLists(); html += `<h${h[1].length + 1}>${inline(h[2])}</h${h[1].length + 1}>`; continue; }
-      if (/^\s*[-*]\s+/.test(line)) { if (!inUl) { closeLists(); html += '<ul>'; inUl = true; } html += `<li>${inline(line.replace(/^\s*[-*]\s+/, ''))}</li>`; continue; }
-      if (/^\s*\d+\.\s+/.test(line)) { if (!inOl) { closeLists(); html += '<ol>'; inOl = true; } html += `<li>${inline(line.replace(/^\s*\d+\.\s+/, ''))}</li>`; continue; }
+      if (ulRe.test(line)) { if (!inUl) { closeLists(); html += '<ul>'; inUl = true; } html += `<li>${inline(line.replace(ulRe, ''))}</li>`; continue; }
+      if (olRe.test(line)) { if (!inOl) { closeLists(); html += '<ol>'; inOl = true; } html += `<li>${inline(line.replace(olRe, ''))}</li>`; continue; }
       closeLists();
       if (line.trim() === '') continue;
       html += `<p>${inline(line)}</p>`;
@@ -222,7 +226,7 @@
               <div style="max-width:480px;margin:10px auto 0">${t('chatWelcomeBody')}</div>
             </div>` : ''}
             ${b ? b.messages.map(m => `
-              <div class="msg ${m.role}">${m.role === 'assistant' ? md(m.content) : esc(m.content)}</div>`).join('') : ''}
+              <div class="msg ${m.role} ${msgDir(m.content)}" dir="${msgDir(m.content)}">${m.role === 'assistant' ? md(m.content) : esc(m.content)}</div>`).join('') : ''}
             ${busy ? `<div class="msg assistant typing-msg"><span class="typing"><span></span><span></span><span></span></span></div>` : ''}
           </div>
           <form class="chat-input chat-col" onsubmit="A.sendAssist(event)">
@@ -539,7 +543,7 @@
         <div class="chat-log" id="chat-log">
           ${b.messages.length === 0 ? `<div class="empty-state">${t('askPlaceholder')}</div>` : ''}
           ${b.messages.map(m => `
-            <div class="msg ${m.role}">
+            <div class="msg ${m.role} ${msgDir(m.content)}" dir="${msgDir(m.content)}">
               <div class="who">${m.role === 'user' ? esc(S.user.username) : esc(m.provider ? `${m.provider}${m.model && m.model !== 'demo' ? ' · ' + m.model : ''}` : 'AI')}</div>
               ${m.role === 'assistant' ? md(m.content) : esc(m.content)}
             </div>`).join('')}
