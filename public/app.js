@@ -773,7 +773,7 @@
     }
     const messages = log.querySelectorAll('.msg.assistant:not(.typing-msg)');
     const msg = messages[messages.length - 1];
-    if (msg) log.scrollTop = Math.max(0, msg.offsetTop - log.offsetTop - 8);
+    if (msg) log.scrollTop = Math.max(0, msg.offsetTop - log.offsetTop - 14);
   }
 
   // While a deck is generating, silently re-fetch the current workspace every 30s.

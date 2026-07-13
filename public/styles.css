@@ -387,9 +387,9 @@ details.a-more .a-section { border-top: 1px dashed var(--line); }
 .chat-main.empty { justify-content: center; gap: 6px; }
 .chat-main.empty .chat-scroll { flex: 0 1 auto; overflow: visible; }
 .chat-topbar { display: flex; align-items: center; gap: 10px; padding: 2px 4px 10px; }
-.chat-scroll { flex: 1; overflow-y: auto; padding: 8px 4px; display: flex; flex-direction: column; }
+.chat-scroll { flex: 1; overflow-y: auto; padding: 14px 4px 8px; display: flex; flex-direction: column; scroll-padding-top: 14px; }
 .chat-col { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 800px; margin: 0 auto; }
-.assist-open .msg.assistant { background: transparent; border: none; padding: 0 2px; max-width: 100%; }
+.assist-open .msg.assistant { background: #fff; border: 1px solid var(--line); padding: 14px 16px; max-width: min(86%, 760px); box-shadow: 0 8px 22px rgba(0,0,0,.04); }
 .assist-open .msg.user { max-width: 75%; }
 .assist-open .assist-outs { border: 1px solid var(--line); border-radius: 12px; margin: 0 auto 10px; width: 100%; max-width: 800px; }
 .greet { margin: auto; text-align: center; padding: 20px; }
