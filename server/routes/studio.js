@@ -102,29 +102,28 @@ router.post('/', requireWorkspace, async (req, res) => {
           system: contentPlanSystem(language, focused, hasFiles, 'deck'),
           user: context.slice(0, 90000) + '\n\nWrite the slide-by-slide content plan now.',
         });
-        const refPages = designProvider === 'anthropic' ? loadReferencePages(3) : [];
-        const art = await ai.chat({
-          provider: designProvider,
-          system: deckArtSystem(language),
-          images: refPages,
-          user: (refPages.length ? 'The attached images are slides from a REFERENCE deck. They are a CRAFT BENCHMARK ONLY: match their level of finish, density, layering and typographic care — do NOT copy their topic, text, colors or layouts.\n\n' : '')
-            + 'CONTENT PLAN:\n' + plan.text.slice(0, 25000) + '\n\nSOURCE MATERIAL EXCERPT:\n' + context.slice(0, 25000) + '\n\nWrite the complete art direction now.',
-        });
-        const pipelineBrief = 'SLIDE-BY-SLIDE CONTENT PLAN (follow exactly):\n' + plan.text.slice(0, 25000)
-          + '\n\nART DIRECTION (follow exactly):\n' + art.text.slice(0, 25000);
-
-        // Stage 3 — production. Use Skywork only when selected, then fall through on failure.
+        // Stage 3 — production. Try Skywork first when selected; fall through on failure.
+        // Skywork gets the employee's request as-is plus researched facts — full creative
+        // freedom over structure, design, layout and slide count.
         if (engine === 'skywork') {
           try {
+            const skLang = language === 'ar' ? 'Arabic' : 'English';
             const skyworkSlides = Math.max(4, Math.min(20, Number(config.skywork.maxSlides) || 8));
-            const skQuery = `Create a stunning, premium, agency-keynote-quality PowerPoint presentation in ${language === 'ar' ? 'Arabic' : 'English'} (${skyworkSlides} highly polished slides unless the user's instructions explicitly require more). Every slide fully designed: rich layouts, imagery, icons, stat callouts — dense and polished, never sparse. End with a References slide listing sources. ${focused ? 'Cover ONLY the points in the slide plan.' : ''}
-
-SLIDE-BY-SLIDE PLAN (follow exactly):
-${plan.text.slice(0, 3600)}
-
-STYLE DIRECTION:
-${art.text.slice(0, 1500)}`;
-            const { buf } = await generatePpt(skQuery, language);
+            const skQuery = `${(instructions || ws.brief || ws.title || 'Briefing deck').trim().slice(0, 1200)} - presentation in ${skLang}. Aim for ${skyworkSlides} highly polished slides unless the user's instructions explicitly require more.${focused ? ' Cover only the points requested above.' : ''}`;
+            const skReference = 'BACKGROUND RESEARCH (use freely for facts and data — structure and design are entirely up to you):\n' + plan.text.slice(0, 28000)
+              + '\n\nSOURCE MATERIAL:\n' + context.slice(0, 28000);
+            let lastProgressWrite = 0;
+            const { buf } = await generatePpt({
+              query: skQuery, language: skLang, reference: skReference,
+              onProgress: ({ progress, stage }) => {
+                const now = Date.now();
+                if (now - lastProgressWrite < 15000) return; // throttle DB writes
+                lastProgressWrite = now;
+                store.updateOutput(output.id, {
+                  content: JSON.stringify({ status: 'processing', pipeline: pipeLabel, progress: progress || '', stage: stage || '' }),
+                }).catch(() => {});
+              },
+            });
             const fileName = `deck-${ws.id.slice(0, 8)}-${Date.now()}.pptx`;
             try { require('fs').writeFileSync(path.join(config.generatedDir, fileName), buf); } catch {}
             await store.updateOutput(output.id, {
@@ -138,6 +137,18 @@ ${art.text.slice(0, 1500)}`;
             if (!useManus && !cfg.providers.anthropic.key) throw e;
           }
         }
+
+        // Stage 2 (Claude): art direction — only needed for the Manus/Claude production paths.
+        const refPages = designProvider === 'anthropic' ? loadReferencePages(3) : [];
+        const art = await ai.chat({
+          provider: designProvider,
+          system: deckArtSystem(language),
+          images: refPages,
+          user: (refPages.length ? 'The attached images are slides from a REFERENCE deck. They are a CRAFT BENCHMARK ONLY: match their level of finish, density, layering and typographic care — do NOT copy their topic, text, colors or layouts.\n\n' : '')
+            + 'CONTENT PLAN:\n' + plan.text.slice(0, 25000) + '\n\nSOURCE MATERIAL EXCERPT:\n' + context.slice(0, 25000) + '\n\nWrite the complete art direction now.',
+        });
+        const pipelineBrief = 'SLIDE-BY-SLIDE CONTENT PLAN (follow exactly):\n' + plan.text.slice(0, 25000)
+          + '\n\nART DIRECTION (follow exactly):\n' + art.text.slice(0, 25000);
 
         if (useManus && engine !== 'claude') {
           // Stage 3a (Manus): full production from the pre-made briefs.

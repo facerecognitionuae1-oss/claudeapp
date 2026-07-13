@@ -26,7 +26,9 @@ module.exports = {
   pptEngine: (process.env.PPT_ENGINE || '').toLowerCase(),
   skywork: {
     key: process.env.SKYWORK_API_KEY || '',
+    gatewayUrl: process.env.SKYWORK_GATEWAY_URL || 'https://api-tools.skywork.ai/theme-gateway',
     timeoutMs: parseInt(process.env.SKYWORK_TIMEOUT_MS || String(30 * 60 * 1000), 10),
+    idleMs: parseInt(process.env.SKYWORK_IDLE_MS || String(12 * 60 * 1000), 10),
     maxSlides: parseInt(process.env.SKYWORK_MAX_SLIDES || '8', 10),
   },
   manus: {

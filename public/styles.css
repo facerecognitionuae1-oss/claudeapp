@@ -268,6 +268,16 @@ label.f { display: block; font-size: 13px; font-weight: 700; color: var(--black)
 .msg td, .msg th { border: 1px solid var(--line); padding: 5px 9px; font-size: 13px; }
 .chat-input { display: flex; gap: 10px; padding: 14px; border-top: 1px solid var(--line); background: #fff; border-radius: 0 0 var(--radius) var(--radius); }
 .chat-input textarea { flex: 1; resize: none; height: 52px; min-width: 0; }
+.chat-input.chat-col { flex-direction: column; align-items: stretch; gap: 8px; }
+.chat-input.chat-col .chat-row { display: flex; gap: 10px; align-items: flex-end; }
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; flex: 0 0 auto; border-radius: 12px; border: 1px solid var(--line); background: #fff; cursor: pointer; font-size: 18px; transition: all .15s; user-select: none; }
+.icon-btn:hover { background: var(--bg); border-color: var(--gold); }
+.icon-btn.rec { background: #fde8e8; border-color: #d33; animation: micpulse 1.2s infinite; }
+@keyframes micpulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(211, 51, 51, .35); } 50% { box-shadow: 0 0 0 8px rgba(211, 51, 51, 0); } }
+.chat-attach { display: flex; flex-wrap: wrap; gap: 6px; }
+.chat-attach .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; font-size: 12.5px; color: var(--black); }
+.chat-attach .chip b { cursor: pointer; color: var(--muted); font-weight: 700; padding: 0 2px; }
+.chat-attach .chip b:hover { color: #c00; }
 
 /* studio */
 .studio-grid { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 20px; }

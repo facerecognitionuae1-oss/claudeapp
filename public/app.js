@@ -41,14 +41,14 @@
       waiting: t('manusWaiting'),
       timeout: t('manusTimeout'),
       no_file: t('manusNoFile'),
-      error: t('manusError'),
+      error: meta.error || t('manusError'),
       stopped: t('manusStopped'),
     };
     return {
       ready: false,
       processing: ['processing', 'running', 'waiting'].includes(st),
       needsCheck: ['processing', 'running', 'waiting'].includes(st),
-      canRetry: ['timeout', 'no_file', 'stopped'].includes(st),
+      canRetry: ['timeout', 'no_file', 'stopped', 'error'].includes(st),
       status: st,
       label: labels[st] || t('notReady'),
       taskUrl: meta.manus_task_url || '',
@@ -182,7 +182,7 @@
       </div>
       <div class="layout">
         <nav class="sidebar">
-          <button class="side-item ${S.view === 'assistant' ? 'active' : ''}" onclick="A.nav('assistant')">🏠 ${t('assistant')}</button>
+          <button class="side-item ${S.view === 'assistant' ? 'active' : ''}" onclick="A.nav('assistant')">🤖 ${t('assistant')}</button>
           <button class="side-item ${S.view === 'studio' ? 'active' : ''}" onclick="A.nav('studio')">✦ ${t('studio')}</button>
           <button class="side-item ${S.view === 'dashboard' || S.view === 'workspace' ? 'active' : ''}" onclick="A.nav('dashboard')">📁 ${t('analysisTool')}</button>
           ${u.role === 'admin' ? `<button class="side-item ${S.view === 'admin' ? 'active' : ''}" onclick="A.nav('admin')">⚙️ ${t('admin')}</button>` : ''}
@@ -211,7 +211,9 @@
           </div>
           ${outputs.length ? `<div class="assist-outs">${outputs.map(o => { const oi = outInfo(o); return oi.ready
               ? `<button class="btn btn-ghost btn-sm" onclick="A.downloadChatOutput('${o.id}')">⬇ ${esc(o.title)}</button>`
-              : `<span class="btn btn-ghost btn-sm" style="cursor:default;opacity:.75">${oi.processing ? '<span class="spinner dark" style="width:12px;height:12px"></span>' : ''} ${esc(oi.label)} · ${esc(o.title)}</span>`; }).join('')}</div>` : ''}
+              : oi.processing
+                ? `<span class="btn btn-ghost btn-sm" style="cursor:default;opacity:.75"><span class="spinner dark" style="width:12px;height:12px"></span> ${t('generating')} ${esc(o.title)}</span>`
+                : `<button class="btn btn-ghost btn-sm" onclick="A.downloadChatOutput('${o.id}')">↻ ${esc(o.title)}</button>`; }).join('')}</div>` : ''}
           <div class="chat-log" id="assist-log">
             ${!b || b.messages.length === 0 ? `
             <div class="empty-state">
@@ -223,10 +225,17 @@
               <div class="msg ${m.role}">${m.role === 'assistant' ? md(m.content) : esc(m.content)}</div>`).join('') : ''}
             ${busy ? `<div class="msg assistant typing-msg"><span class="typing"><span></span><span></span><span></span></span></div>` : ''}
           </div>
-          <form class="chat-input" onsubmit="A.sendAssist(event)">
-            <textarea class="input" name="q" placeholder="${t('typeMessage')}" ${busy ? 'disabled' : ''}
-              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.requestSubmit();}"></textarea>
-            <button class="btn btn-primary" ${busy ? 'disabled' : ''}>${t('send')}</button>
+          <form class="chat-input chat-col" onsubmit="A.sendAssist(event)">
+            ${(S.assistPending && S.assistPending.length) ? `<div class="chat-attach">${S.assistPending.map((f, i) =>
+              `<span class="chip">📎 ${esc(f.name)} <b title="remove" onclick="A.removeAttach(${i})">×</b></span>`).join('')}</div>` : ''}
+            <div class="chat-row">
+              <label class="icon-btn" title="${t('attachFiles')}">📎<input type="file" multiple hidden onchange="A.attachAssist(this)"></label>
+              <textarea class="input" name="q" placeholder="${t('typeMessage')}" ${busy ? 'disabled' : ''}
+                oninput="A.draftAssist(this.value)"
+                onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.requestSubmit();}">${esc(S.assistDraft || '')}</textarea>
+              <button type="button" class="icon-btn" id="mic-btn" title="${t('voiceInput')}" onclick="A.toggleMic()">🎤</button>
+              <button class="btn btn-primary" ${busy ? 'disabled' : ''}>${t('send')}</button>
+            </div>
           </form>
         </div>
       </div>`;
@@ -260,7 +269,6 @@
             <option value="txt">Text (.txt)</option>
             <option value="json">JSON (.json)</option>
           </select>
-          <label class="f" style="display:flex;align-items:flex-start;gap:8px;font-weight:600"><input type="checkbox" name="withImages" style="margin-top:3px"> <span>${t('withImages')}</span></label>
           <div class="help" style="margin-top:10px">${t('claudeHint')}</div>
           <button class="btn btn-primary" style="width:100%;margin-top:16px" ${busy ? 'disabled' : ''}>
             ${busy ? `<span class="spinner"></span> ${t('generating')}` : `✦ ${t('generate')}`}</button>
@@ -572,7 +580,6 @@
             </select>
             <label class="f">${t('extraInstructions')}</label>
             <textarea class="input" name="instructions" rows="4"></textarea>
-            <label class="f" style="display:flex;align-items:flex-start;gap:8px;font-weight:600"><input type="checkbox" name="withImages" style="margin-top:3px"> <span>${t('withImages')}</span></label>
             <label class="f">${t('scopeLabel')}</label>
             <div class="choices">
               <label class="choice-card"><input type="radio" name="scope" value="general" checked><span class="cc-title">${t('scopeGeneral')}</span></label>
@@ -714,7 +721,7 @@
     scheduleOutputPoll();
   }
 
-  // While a Manus deck is generating or recoverable, silently re-fetch the current workspace every 30s
+  // While a deck is generating, silently re-fetch the current workspace every 30s.
   function scheduleOutputPoll() {
     clearTimeout(S._outPoll);
     const bundle = S.view === 'studio' ? S.studioWs : S.view === 'assistant' ? S.chatWs : S.view === 'workspace' ? S.ws : null;
@@ -924,7 +931,7 @@
       try {
         const r = await api(`/workspaces/${S.ws.workspace.id}/studio`, {
           method: 'POST',
-          body: JSON.stringify({ type: f.type.value, format: f.format.disabled ? 'pptx' : f.format.value, instructions: f.instructions.value, scope: f.scope.value, provider: S.provider, web: S.web, withImages: f.withImages ? f.withImages.checked : false }),
+          body: JSON.stringify({ type: f.type.value, format: f.format.disabled ? 'pptx' : f.format.value, instructions: f.instructions.value, scope: f.scope.value, provider: S.provider, web: S.web }),
         });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true);
         else if (r.processing) toast(t('manusProcessing'));
@@ -1034,7 +1041,7 @@
         }
         const r = await api(`/workspaces/${S.studioWs.workspace.id}/studio`, {
           method: 'POST',
-          body: JSON.stringify({ type, format, instructions: text, scope: 'focused', provider: S.provider, preferClaude: true, web: S.web, withImages: f.withImages ? f.withImages.checked : false }),
+          body: JSON.stringify({ type, format, instructions: text, scope: 'focused', provider: S.provider, preferClaude: true, web: S.web }),
         });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true);
         else if (r.processing) toast(t('manusProcessing'));
@@ -1055,21 +1062,65 @@
         S.view = 'assistant'; render();
       } catch (err) { toast(err.message, true); }
     },
-    newChat() { S.chatWs = null; render(); },
+    newChat() { S.chatWs = null; S.assistPending = []; S.assistDraft = ''; render(); },
     async openChat(id) {
       try { S.chatWs = await api('/workspaces/' + id); render(); }
       catch (err) { toast(err.message, true); }
     },
+    draftAssist(v) { S.assistDraft = v; },
+    attachAssist(input) {
+      if (input.form && input.form.q) S.assistDraft = input.form.q.value;
+      S.assistPending = (S.assistPending || []).concat(Array.from(input.files || []));
+      input.value = '';
+      render();
+    },
+    removeAttach(i) {
+      (S.assistPending || []).splice(i, 1);
+      render();
+    },
+    toggleMic() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) return toast(t('voiceNotSupported'), true);
+      if (S.recog) { try { S.recog.stop(); } catch {} return; }
+      const ta = document.querySelector('.chat-input textarea[name=q]');
+      const btn = document.getElementById('mic-btn');
+      if (!ta) return;
+      const r = new SR();
+      r.lang = S.lang === 'ar' ? 'ar-AE' : 'en-US';
+      r.continuous = true; r.interimResults = true;
+      const base = ta.value ? ta.value.replace(/\s+$/, '') + ' ' : '';
+      r.onresult = (ev) => {
+        let txt = '';
+        for (let i = 0; i < ev.results.length; i++) txt += ev.results[i][0].transcript;
+        ta.value = base + txt; S.assistDraft = ta.value;
+      };
+      r.onend = () => { S.recog = null; if (btn) btn.classList.remove('rec'); };
+      r.onerror = () => { S.recog = null; if (btn) btn.classList.remove('rec'); };
+      S.recog = r; r.start(); if (btn) btn.classList.add('rec');
+    },
     async sendAssist(e) {
       e.preventDefault();
-      const ta = e.target.q; const q = ta.value.trim(); if (!q) return;
+      const ta = e.target.q; let q = ta.value.trim();
+      const pend = S.assistPending || [];
+      if (!q && !pend.length) return;
+      if (S.recog) { try { S.recog.stop(); } catch {} }
       S.busy.assist = true;
       try {
         if (!S.chatWs) {
-          const data = await api('/workspaces', { method: 'POST', body: JSON.stringify({ title: q.slice(0, 60), kind: 'chat', language: S.lang, mode: 'unguarded' }) });
+          const title = (q || (pend[0] && pend[0].name) || 'Chat').slice(0, 60);
+          const data = await api('/workspaces', { method: 'POST', body: JSON.stringify({ title, kind: 'chat', language: S.lang, mode: 'unguarded' }) });
           S.chats.unshift(data.workspace);
           S.chatWs = await api('/workspaces/' + data.workspace.id);
         }
+        if (pend.length) {
+          const fd = new FormData();
+          for (const f of pend) fd.append('files', f);
+          await api(`/workspaces/${S.chatWs.workspace.id}/files`, { method: 'POST', body: fd });
+          if (!q) q = t('analyzeAttached');
+          else q = q + '\n\n📎 ' + pend.map(f => f.name).join(', ');
+          S.assistPending = [];
+        }
+        S.assistDraft = '';
         S.chatWs.messages.push({ id: 'tmp', role: 'user', content: q, created_at: new Date().toISOString() });
         render();
         const r = await api(`/workspaces/${S.chatWs.workspace.id}/chat`, { method: 'POST', body: JSON.stringify({ question: q, provider: S.provider, web: S.web }) });
@@ -1096,7 +1147,6 @@
           <div class="help">${t('claudeHint')}</div>
           <label class="f">${t('extraInstructions')}</label>
           <textarea class="input" name="instructions" rows="3"></textarea>
-          <label class="f" style="display:flex;align-items:flex-start;gap:8px;font-weight:600"><input type="checkbox" name="withImages" style="margin-top:3px"> <span>${t('withImages')}</span></label>
           <div class="actions">
             <button type="button" class="btn btn-ghost" onclick="A.closeModal()">${t('cancel')}</button>
             <button class="btn btn-primary">✦ ${t('generate')}</button>
@@ -1113,11 +1163,11 @@
       try {
         const r = await api(`/workspaces/${S.chatWs.workspace.id}/studio`, {
           method: 'POST',
-          body: JSON.stringify({ type, format: type === 'pptx' ? 'pptx' : type === 'infographic' ? 'svg' : 'md', instructions, scope: 'general', provider: S.provider, preferClaude: true, web: S.web, withImages: f.withImages ? f.withImages.checked : false }),
+          body: JSON.stringify({ type, format: type === 'pptx' ? 'pptx' : type === 'infographic' ? 'svg' : 'md', instructions, scope: 'general', provider: S.provider, preferClaude: true, web: S.web }),
         });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true);
         else if (r.processing) toast(t('manusProcessing'));
-        else toast('✓');
+        else toast('\u2713');
         S.chatWs = await api('/workspaces/' + S.chatWs.workspace.id);
         if (!r.processing) A.downloadChatOutput(r.output.id);
       } catch (err) { toast(err.message, true); }
