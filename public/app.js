@@ -25,7 +25,6 @@
     scrollTarget: '',
     msgHtmlCache: new Map(),
     assistTempMessages: [],
-    chatHistoryOpen: false,
   };
 
   const t = k => (I18N[S.lang] && I18N[S.lang][k]) || I18N.en[k] || k;
@@ -159,6 +158,26 @@
 
   // ───────────────────────── views ─────────────────────────
 
+  function chatHistoryNav() {
+    if (S.view !== 'assistant') return '';
+    const b = S.chatWs;
+    const visibleChats = S.chats.slice(0, 80);
+    return `
+      <div class="side-history">
+        <div class="side-history-head">
+          <span>${t('chatHistory')}</span>
+          <button type="button" class="side-new-chat" onclick="A.newChat()" ${S.busy.newChat ? 'disabled' : ''}>+</button>
+        </div>
+        <div class="side-history-list">
+          ${visibleChats.map(c => `<div class="chat-item ${b && b.workspace.id === c.id ? 'active' : ''}" onclick="A.openChat('${c.id}')">
+            <div class="ci-main"><div class="ci-title">${esc(c.title)}</div><div class="ci-when">${new Date(c.updated_at).toLocaleDateString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</div></div>
+            <button type="button" class="ci-delete" title="${t('delete')}" onclick="event.stopPropagation();A.deleteChat('${c.id}')">×</button>
+          </div>`).join('') || `<div class="history-trim">${t('newChat')}</div>`}
+          ${S.chats.length > visibleChats.length ? `<div class="history-trim">${S.chats.length - visibleChats.length} older chats hidden for speed.</div>` : ''}
+        </div>
+      </div>`;
+  }
+
   function langSelect(cls) {
     return `<select class="${cls || 'input'}" onchange="A.setLang(this.value)">
       <option value="en" ${S.lang === 'en' ? 'selected' : ''}>English</option>
@@ -209,11 +228,12 @@
         <button class="btn btn-primary btn-sm" onclick="A.logout()">${t('logout')}</button>
       </div>
       <div class="layout">
-        <nav class="sidebar">
+        <nav class="sidebar ${S.view === 'assistant' ? 'with-history' : ''}">
           <button class="side-item ${S.view === 'assistant' ? 'active' : ''}" onclick="A.nav('assistant')">🤖 ${t('assistant')}</button>
           <button class="side-item ${S.view === 'studio' ? 'active' : ''}" onclick="A.nav('studio')">✦ ${t('studio')}</button>
           <button class="side-item ${S.view === 'dashboard' || S.view === 'workspace' ? 'active' : ''}" onclick="A.nav('dashboard')">📁 ${t('analysisTool')}</button>
           ${u.role === 'admin' ? `<button class="side-item ${S.view === 'admin' ? 'active' : ''}" onclick="A.nav('admin')">⚙️ ${t('admin')}</button>` : ''}
+          ${chatHistoryNav()}
         </nav>
         <div class="content"><div class="main">${content}</div></div>
       </div>
@@ -224,7 +244,6 @@
     const b = S.chatWs;
     const busy = S.busy.assist;
     const outputs = b ? b.outputs : [];
-    const visibleChats = S.chats.slice(0, 80);
     const messages = (b ? b.messages : []).concat(S.assistTempMessages || []);
     const empty = messages.length === 0;
     const hour = new Date().getHours();
@@ -251,26 +270,12 @@
           </form>`;
     return `
       <div class="assist-open">
-        ${S.chatHistoryOpen ? `<button type="button" class="chat-scrim" onclick="A.toggleChatHistory(false)" aria-label="${t('close')}"></button>` : ''}
-        <aside class="chat-side ${S.chatHistoryOpen ? 'open' : ''}">
-          <div class="chat-side-head">
-            <strong>${t('chatHistory')}</strong>
-            <button type="button" class="ci-delete always" title="${t('close')}" onclick="A.toggleChatHistory(false)">×</button>
-          </div>
-          <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="A.newChat()" ${S.busy.newChat ? 'disabled' : ''}>${S.busy.newChat ? `<span class="spinner"></span> ${t('creating')}` : `+ ${t('newChat')}`}</button>
-          ${visibleChats.map(c => `<div class="chat-item ${b && b.workspace.id === c.id ? 'active' : ''}" onclick="A.openChat('${c.id}')">
-            <div class="ci-main"><div class="ci-title">${esc(c.title)}</div><div class="ci-when">${new Date(c.updated_at).toLocaleDateString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</div></div>
-            <button type="button" class="ci-delete" title="${t('delete')}" onclick="event.stopPropagation();A.deleteChat('${c.id}')">×</button>
-          </div>`).join('')}
-          ${S.chats.length > visibleChats.length ? `<div class="history-trim">${S.chats.length - visibleChats.length} older chats hidden for speed.</div>` : ''}
-        </aside>
         <section class="chat-main ${empty ? 'empty' : ''}">
           <div class="chat-topbar">
             <strong>${b ? esc(b.workspace.title) : t('assistant')}</strong>
             <div class="grow"></div>
             ${S.busy.gen ? `<span class="spinner dark"></span>` : ''}
             ${b && !empty ? `<button class="btn btn-dark btn-sm" onclick="A.openGenFromChat()">\u2726 ${t('makeFromChat')}</button>` : ''}
-            <button class="btn btn-ghost btn-sm" onclick="A.toggleChatHistory()">☰ ${t('chatHistory')}</button>
           </div>
           ${outputs.length ? `<div class="assist-outs">${outputs.map(o => { const oi = outInfo(o); return oi.ready
               ? `<button class="btn btn-ghost btn-sm" onclick="A.downloadChatOutput('${o.id}')">\u2B07 ${esc(o.title)}</button>`
@@ -1123,10 +1128,6 @@
     downloadStudioHomeOutput(id) { A._download(`/api/workspaces/${S.studioWs.workspace.id}/studio/${id}/download`); },
 
     // assistant (general chat)
-    toggleChatHistory(force) {
-      S.chatHistoryOpen = typeof force === 'boolean' ? force : !S.chatHistoryOpen;
-      render();
-    },
     async loadAssistant(background) {
       try {
         const data = await api('/workspaces');
@@ -1148,7 +1149,6 @@
         });
         S.chats.unshift(data.workspace);
         S.chatWs = await api('/workspaces/' + data.workspace.id);
-        S.chatHistoryOpen = false;
       } catch (err) {
         toast(err.message, true);
       } finally {
@@ -1157,7 +1157,7 @@
       }
     },
     async openChat(id) {
-      try { S.assistTempMessages = []; S.chatWs = await api('/workspaces/' + id); S.chatHistoryOpen = false; render(); }
+      try { S.assistTempMessages = []; S.chatWs = await api('/workspaces/' + id); render(); }
       catch (err) { toast(err.message, true); }
     },
     async deleteChat(id) {
