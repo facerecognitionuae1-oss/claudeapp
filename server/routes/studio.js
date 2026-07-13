@@ -116,7 +116,8 @@ router.post('/', requireWorkspace, async (req, res) => {
         // Stage 3 — production. Use Skywork only when selected, then fall through on failure.
         if (engine === 'skywork') {
           try {
-            const skQuery = `Create a stunning, premium, agency-keynote-quality PowerPoint presentation in ${language === 'ar' ? 'Arabic' : 'English'} (12+ slides). Every slide fully designed: rich layouts, imagery, icons, stat callouts — dense and polished, never sparse. End with a References slide listing sources. ${focused ? 'Cover ONLY the points in the slide plan.' : ''}
+            const skyworkSlides = Math.max(4, Math.min(20, Number(config.skywork.maxSlides) || 8));
+            const skQuery = `Create a stunning, premium, agency-keynote-quality PowerPoint presentation in ${language === 'ar' ? 'Arabic' : 'English'} (${skyworkSlides} highly polished slides unless the user's instructions explicitly require more). Every slide fully designed: rich layouts, imagery, icons, stat callouts — dense and polished, never sparse. End with a References slide listing sources. ${focused ? 'Cover ONLY the points in the slide plan.' : ''}
 
 SLIDE-BY-SLIDE PLAN (follow exactly):
 ${plan.text.slice(0, 3600)}
@@ -205,7 +206,7 @@ ${context.slice(0, 40000)}`;
         console.warn('[pipeline] failed:', err.message);
         await store.updateOutput(output.id, {
           title: 'Briefing Deck — pipeline failed: ' + String(err.message).slice(0, 90),
-          content: JSON.stringify({ status: 'error' }),
+          content: JSON.stringify({ status: 'error', error: String(err.message || err) }),
         }).catch(() => {});
       }
     });

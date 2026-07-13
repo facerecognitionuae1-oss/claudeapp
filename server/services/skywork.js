@@ -31,7 +31,7 @@ async function downloadPptx(downloadUrl) {
 async function generatePpt(query, language = 'en') {
   if (!skyworkConfigured()) throw new Error('SKYWORK_API_KEY is not configured');
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15 * 60 * 1000);
+  const timer = setTimeout(() => controller.abort(), Math.max(60 * 1000, Number(config.skywork.timeoutMs) || 30 * 60 * 1000));
   const sessionId = uuid().replace(/-/g, '_');
   try {
     const res = await fetch(`${API}/ppt_write_stream`, {
@@ -67,7 +67,10 @@ async function generatePpt(query, language = 'en') {
       if (!eventType && !eventData) return null;
       const data = parseEventData(eventData);
       if (eventType === 'phase') lastPhase = data.phase || lastPhase;
-      if (eventType === 'error') throw new Error(data.message || JSON.stringify(data) || 'Skywork generation failed');
+      if (eventType === 'error') {
+        const message = data.message || data.error || data.code || JSON.stringify(data) || 'Skywork generation failed';
+        throw new Error(`Skywork generation failed: ${message}`);
+      }
       if (eventType === 'completionEvent' && data.phase === 'done' && data.download_url) {
         return { buf: await downloadPptx(data.download_url), url: data.download_url };
       }
