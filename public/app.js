@@ -1100,11 +1100,16 @@
     },
     async sendAssist(e) {
       e.preventDefault();
-      const ta = e.target.q; let q = ta.value.trim();
+      if (S.busy.assist) return;
+      const form = e.currentTarget || e.target;
+      const ta = form.querySelector('textarea[name="q"]');
+      let q = ta ? ta.value.trim() : '';
+      S.assistDraft = q;
       const pend = S.assistPending || [];
       if (!q && !pend.length) return;
       if (S.recog) { try { S.recog.stop(); } catch {} }
       S.busy.assist = true;
+      render();
       try {
         if (!S.chatWs) {
           const title = (q || (pend[0] && pend[0].name) || 'Chat').slice(0, 60);
@@ -1126,8 +1131,13 @@
         const r = await api(`/workspaces/${S.chatWs.workspace.id}/chat`, { method: 'POST', body: JSON.stringify({ question: q, provider: S.provider, web: S.web }) });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true);
       } catch (err) { toast(err.message, true); }
-      S.busy.assist = false;
-      if (S.chatWs) S.chatWs = await api('/workspaces/' + S.chatWs.workspace.id);
+      finally {
+        S.busy.assist = false;
+        if (S.chatWs) {
+          try { S.chatWs = await api('/workspaces/' + S.chatWs.workspace.id); }
+          catch (err) { toast(err.message, true); }
+        }
+      }
       render();
     },
     openGenFromChat() {
