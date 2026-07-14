@@ -224,9 +224,7 @@
           <div class="chat-scroll" id="assist-log">
             ${empty ? `
             <div class="greet">
-              <div class="bot-pet" aria-hidden="true">
-                <img src="/assets/assistant-mascot.png" alt="">
-              </div>
+              <div class="greet-ico">\u{1F916}</div>
               <h1>${esc(greet)}${firstName ? ', ' + esc(firstName) : ''}</h1>
               <p>${t('chatWelcomeBody')}</p>
             </div>` : `
