@@ -142,6 +142,19 @@
 
   function shell(content) {
     const u = S.user;
+    const activeChatId = S.chatWs && S.chatWs.workspace ? S.chatWs.workspace.id : '';
+    const assistantHistory = S.view === 'assistant' ? `
+          <div class="chat-history-section">
+            <button class="btn btn-primary btn-sm chat-new-btn" onclick="A.newChat()">+ ${t('newChat')}</button>
+            <div class="chat-history-label">${t('chatHistory') || 'Chat history'}</div>
+            ${S.chats.map(c => `<div class="chat-item ${activeChatId === c.id ? 'active' : ''}" onclick="A.openChat('${c.id}')">
+              <div class="chat-item-main">
+                <div class="ci-title">${esc(c.title)}</div>
+                <div class="ci-when">${new Date(c.updated_at).toLocaleDateString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</div>
+              </div>
+              <button class="chat-del" title="${t('delete')}" onclick="event.stopPropagation();A.deleteChat('${c.id}')">\u00D7</button>
+            </div>`).join('')}
+          </div>` : '';
     return `
     <div class="shell">
       <div class="topbar">
@@ -162,6 +175,7 @@
       <div class="layout">
         <nav class="sidebar">
           <button class="side-item ${S.view === 'assistant' ? 'active' : ''}" onclick="A.nav('assistant')">🤖 ${t('assistant')}</button>
+          ${assistantHistory}
           <button class="side-item ${S.view === 'studio' ? 'active' : ''}" onclick="A.nav('studio')">✦ ${t('studio')}</button>
           <button class="side-item ${S.view === 'dashboard' || S.view === 'workspace' ? 'active' : ''}" onclick="A.nav('dashboard')">📁 ${t('analysisTool')}</button>
           ${u.role === 'admin' ? `<button class="side-item ${S.view === 'admin' ? 'active' : ''}" onclick="A.nav('admin')">⚙️ ${t('admin')}</button>` : ''}
@@ -178,7 +192,7 @@
     const empty = !b || b.messages.length === 0;
     const hour = new Date().getHours();
     const greet = t(hour < 12 ? 'greetMorning' : hour < 17 ? 'greetAfternoon' : 'greetEvening');
-    const firstName = ((S.user && (S.user.full_name || S.user.username)) || '').trim().split(/\s+/)[0];
+    const firstName = ((S.user && (S.user.username || S.user.full_name)) || '').trim();
     const composer = `
           <form class="composer" onsubmit="A.sendAssist(event)">
             ${(S.assistPending && S.assistPending.length) ? `<div class="chat-attach">${S.assistPending.map((f, i) =>
@@ -196,19 +210,6 @@
           </form>`;
     return `
       <div class="assist-open">
-        <aside class="chat-side">
-          <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="A.newChat()">+ ${t('newChat')}</button>
-          <div class="chat-history-section">
-            <div class="chat-history-label">${t('chatHistory') || 'Chat history'}</div>
-            ${S.chats.map(c => `<div class="chat-item ${b && b.workspace.id === c.id ? 'active' : ''}" onclick="A.openChat('${c.id}')">
-              <div class="chat-item-main">
-                <div class="ci-title">${esc(c.title)}</div>
-                <div class="ci-when">${new Date(c.updated_at).toLocaleDateString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</div>
-              </div>
-              <button class="chat-del" title="${t('delete')}" onclick="event.stopPropagation();A.deleteChat('${c.id}')">\u00D7</button>
-            </div>`).join('')}
-          </div>
-        </aside>
         <section class="chat-main ${empty ? 'empty' : ''}">
           ${!empty ? `<div class="chat-topbar">
             <strong>${esc(b.workspace.title)}</strong>
