@@ -175,10 +175,10 @@
       <div class="layout">
         <nav class="sidebar">
           <button class="side-item ${S.view === 'assistant' ? 'active' : ''}" onclick="A.nav('assistant')">🤖 ${t('assistant')}</button>
-          ${assistantHistory}
           <button class="side-item ${S.view === 'studio' ? 'active' : ''}" onclick="A.nav('studio')">✦ ${t('studio')}</button>
           <button class="side-item ${S.view === 'dashboard' || S.view === 'workspace' ? 'active' : ''}" onclick="A.nav('dashboard')">📁 ${t('analysisTool')}</button>
           ${u.role === 'admin' ? `<button class="side-item ${S.view === 'admin' ? 'active' : ''}" onclick="A.nav('admin')">⚙️ ${t('admin')}</button>` : ''}
+          ${assistantHistory}
         </nav>
         <div class="content"><div class="main">${content}</div></div>
       </div>
