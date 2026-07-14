@@ -188,8 +188,9 @@
               onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.requestSubmit();}">${esc(S.assistDraft || '')}</textarea>
             <div class="composer-bar">
               <label class="cbtn" title="${t('attachFiles')}">\u{1F4CE}<input type="file" multiple hidden onchange="A.attachAssist(this)"></label>
+              <button type="button" class="cbtn ${S.web ? 'active' : ''}" title="${t('webSearch')}" onclick="A.toggleWeb()">\u{1F310}</button>
               <div class="grow"></div>
-              <button type="button" class="cbtn" id="mic-btn" title="${t('voiceInput')}" onclick="A.toggleMic()">\u{1F3A4}</button>
+              <button type="button" class="cbtn" id="mic-btn" title="${t('voiceInput')}" onclick="A.toggleMic()">\u{1F399}</button>
               <button class="send-btn" ${busy ? 'disabled' : ''} title="${t('send')}">\u2191</button>
             </div>
           </form>`;
@@ -197,7 +198,16 @@
       <div class="assist-open">
         <aside class="chat-side">
           <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="A.newChat()">+ ${t('newChat')}</button>
-          ${S.chats.map(c => `<div class="chat-item ${b && b.workspace.id === c.id ? 'active' : ''}" onclick="A.openChat('${c.id}')"><div class="ci-title">${esc(c.title)}</div><div class="ci-when">${new Date(c.updated_at).toLocaleDateString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</div></div>`).join('')}
+          <div class="chat-history-section">
+            <div class="chat-history-label">${t('chatHistory') || 'Chat history'}</div>
+            ${S.chats.map(c => `<div class="chat-item ${b && b.workspace.id === c.id ? 'active' : ''}" onclick="A.openChat('${c.id}')">
+              <div class="chat-item-main">
+                <div class="ci-title">${esc(c.title)}</div>
+                <div class="ci-when">${new Date(c.updated_at).toLocaleDateString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</div>
+              </div>
+              <button class="chat-del" title="${t('delete')}" onclick="event.stopPropagation();A.deleteChat('${c.id}')">\u00D7</button>
+            </div>`).join('')}
+          </div>
         </aside>
         <section class="chat-main ${empty ? 'empty' : ''}">
           ${!empty ? `<div class="chat-topbar">
@@ -736,6 +746,12 @@
     setLang,
     logout,
     setProvider(p) { S.provider = p; localStorage.setItem('provider', p); },
+    toggleWeb() {
+      if (!S.searchAvailable) return toast(t('webNotConfigured'), true);
+      S.web = !S.web;
+      localStorage.setItem('web', S.web ? '1' : '0');
+      render();
+    },
     // Never default to demo when a real provider is configured
     _normalizeProvider() {
       const cur = S.providers.find(p => p.id === S.provider);
@@ -1049,6 +1065,15 @@
     async openChat(id) {
       try { S.chatWs = await api('/workspaces/' + id); render(); }
       catch (err) { toast(err.message, true); }
+    },
+    async deleteChat(id) {
+      if (!confirm(t('confirmDelete'))) return;
+      try {
+        await api('/workspaces/' + id, { method: 'DELETE' });
+        S.chats = S.chats.filter(c => c.id !== id);
+        if (S.chatWs && S.chatWs.workspace.id === id) S.chatWs = null;
+        render();
+      } catch (err) { toast(err.message, true); }
     },
     draftAssist(v) { S.assistDraft = v; },
     attachAssist(input) {
