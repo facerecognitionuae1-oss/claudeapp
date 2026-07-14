@@ -225,16 +225,7 @@
             ${empty ? `
             <div class="greet">
               <div class="bot-pet" aria-hidden="true">
-                <div class="bot-ghutra"></div>
-                <div class="bot-agal"></div>
-                <div class="bot-head">
-                  <span class="bot-eye left"></span>
-                  <span class="bot-eye right"></span>
-                  <span class="bot-mouth"></span>
-                </div>
-                <div class="bot-body"></div>
-                <div class="bot-arm"></div>
-                <div class="bot-laptop"><span></span></div>
+                <img src="/assets/assistant-mascot.png" alt="">
               </div>
               <h1>${esc(greet)}${firstName ? ', ' + esc(firstName) : ''}</h1>
               <p>${t('chatWelcomeBody')}</p>
