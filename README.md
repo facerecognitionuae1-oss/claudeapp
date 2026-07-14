@@ -28,16 +28,6 @@ Set any of these in `.env`; users pick the model per question/task from the top 
 
 If a provider call fails, the system falls back to the demo responder and tells the user.
 
-AI images in slide decks use the same `OPENAI_API_KEY`. Set optional `IMAGE_MODEL=gpt-image-1` to choose the image model; if omitted, the app defaults to `gpt-image-1` and falls back to `dall-e-3`.
-
-For highest-caliber PowerPoint generation, configure all three: `ANTHROPIC_API_KEY` for deck narrative/content strategy, `OPENAI_API_KEY` for visual and image direction, and `MANUS_API_KEY` for final agentic research, design composition, visuals, and PPTX export. If one is missing, the app falls back to the configured providers.
-
-Manus PowerPoint tasks attach the style reference PDF from `server/reference/deck-reference.pdf` when present, falling back to `server/assets/premium-deck-style-reference.pdf`. Rendered pages in `server/reference/pages/` are also shown to Claude for art direction. These references are used for design caliber only, not as source facts.
-
-Premium Manus decks can take 15-45+ minutes. The app keeps polling Manus for up to one hour by default before showing Retry download; tune this with `MANUS_POLL_TIMEOUT_MS` and `MANUS_POLL_INTERVAL_MS`.
-
-Optional Skywork deck production is available with `SKYWORK_API_KEY`. Skywork is the default premium engine when configured; set `PPT_ENGINE=manus` to force Manus, or `PPT_ENGINE=claude` to bypass external deck engines. Skywork defaults to 8 polished slides, a 30-minute overall timeout, and a 12-minute stream idle timeout; tune with `SKYWORK_MAX_SLIDES`, `SKYWORK_TIMEOUT_MS`, and `SKYWORK_IDLE_MS`.
-
 ## AI modes
 
 - **Guarded** — evidence-first: claims only from uploaded material, heavy citations `[doc: filename, near: "…"]`, HIGH/MEDIUM/LOW confidence labels, gaps stated explicitly.
@@ -47,11 +37,9 @@ Both modes always include human-verification notes.
 
 ## Storage
 
-- **Best for deployment:** set `DATABASE_URL` for PostgreSQL. Tables are auto-created from `server/db/schema.sql` on boot. PostgreSQL stores users, workspaces, uploaded files, extracted text, analyses, chat history, generated outputs, notes, and activity logs.
-- **Local fallback:** if `DATABASE_URL` is empty, the app uses JSON persistence. By default this is `data/db.json`.
-- **Important:** many hosts delete the app folder during redeploy. If you are not using PostgreSQL, set `PERSISTENT_DIR` to a mounted/persistent folder outside the app release directory, for example `/var/data/uaeicp`. The default JSON DB, uploads, and generated files will then live under that folder.
-- Optional path overrides: `DATA_FILE`, `UPLOAD_DIR`, `GENERATED_DIR`.
-- Uploaded files default to `PERSISTENT_DIR/uploads`; generated PPTX files default to `PERSISTENT_DIR/generated` when `PERSISTENT_DIR` is set. With PostgreSQL enabled, uploaded files and generated PPTX files are also saved in the database so downloads survive redeploys even if the app folder is replaced.
+- **Default:** local JSON persistence at `data/db.json` (no setup).
+- **PostgreSQL:** set `DATABASE_URL` — tables are auto-created from `server/db/schema.sql` on boot. Point any DB GUI (pgAdmin, TablePlus, DBeaver) at the same URL to inspect tables: `users`, `workspaces`, `files`, `analyses`, `messages`, `outputs`, `notes`.
+- Uploaded files → `data/uploads/`; generated PPTX files → `generated/`.
 
 ## File support
 
@@ -98,7 +86,7 @@ Without `DATABASE_URL`, data lives in `data/db.json` + `data/uploads/` + `genera
 1. Node 18+ required (uses built-in `fetch`).
 2. Upload the project, run `npm install --production`.
 3. Set environment variables (`.env` or the panel's env settings): `PORT`, strong `JWT_SECRET`, `DATABASE_URL` for the host's PostgreSQL, admin credentials, provider keys.
-4. To keep work after redeploy, use PostgreSQL with `DATABASE_URL`. If PostgreSQL is not available, set `PERSISTENT_DIR` to a persistent mounted folder outside the app directory and ensure it is writable.
+4. Ensure `data/uploads` and `generated` are writable (persistent storage).
 5. Run `npm start` under a process manager (PM2: `pm2 start server/index.js --name uaeicp`).
 6. Put HTTPS in front (host's proxy or nginx). The app is a single Express server serving both API and frontend on one port.
 

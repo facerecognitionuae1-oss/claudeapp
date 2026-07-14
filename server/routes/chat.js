@@ -32,7 +32,7 @@ router.post('/', requireWorkspace, async (req, res) => {
     provider: '', model: '', mode, created_at: new Date().toISOString(),
   });
 
-  // Live web search is opt-in from the globe toggle.
+  // Live web search runs only when the employee enables the composer globe.
   let webBlock = '';
   if (req.body?.web === true) {
     const { webSearch, formatSearch, searchConfigured } = require('../services/search');

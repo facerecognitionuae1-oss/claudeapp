@@ -2,14 +2,7 @@ require('dotenv').config();
 const path = require('path');
 
 const root = path.join(__dirname, '..');
-const persistentDir = process.env.PERSISTENT_DIR
-  ? path.resolve(process.env.PERSISTENT_DIR)
-  : path.join(root, 'data');
-
-function resolveRuntimePath(value, fallback) {
-  if (!value) return fallback;
-  return path.isAbsolute(value) ? value : path.resolve(root, value);
-}
+const persistentRoot = process.env.PERSISTENT_DIR ? path.resolve(process.env.PERSISTENT_DIR) : root;
 
 module.exports = {
   port: process.env.PORT || 3000,
@@ -18,24 +11,16 @@ module.exports = {
   adminPassword: process.env.ADMIN_PASSWORD || 'Admin@1234',
   databaseUrl: process.env.DATABASE_URL || '',
   pgSsl: process.env.PGSSL === 'true',
-  persistentDir,
-  uploadDir: resolveRuntimePath(process.env.UPLOAD_DIR, path.join(persistentDir, 'uploads')),
-  generatedDir: resolveRuntimePath(process.env.GENERATED_DIR, path.join(persistentDir, 'generated')),
-  dataFile: resolveRuntimePath(process.env.DATA_FILE, path.join(persistentDir, 'db.json')),
+  uploadDir: path.resolve(persistentRoot, process.env.UPLOAD_DIR || './data/uploads'),
+  generatedDir: path.resolve(persistentRoot, process.env.GENERATED_DIR || './generated'),
+  dataFile: process.env.DATA_FILE ? path.resolve(process.env.DATA_FILE) : path.join(persistentRoot, 'data', 'db.json'),
   maxUploadMb: parseInt(process.env.MAX_UPLOAD_MB || '25', 10),
-  pptEngine: (process.env.PPT_ENGINE || '').toLowerCase(),
   skywork: {
     key: process.env.SKYWORK_API_KEY || '',
-    gatewayUrl: process.env.SKYWORK_GATEWAY_URL || 'https://api-tools.skywork.ai/theme-gateway',
-    timeoutMs: parseInt(process.env.SKYWORK_TIMEOUT_MS || String(30 * 60 * 1000), 10),
-    idleMs: parseInt(process.env.SKYWORK_IDLE_MS || String(12 * 60 * 1000), 10),
-    maxSlides: parseInt(process.env.SKYWORK_MAX_SLIDES || '8', 10),
   },
   manus: {
     key: process.env.MANUS_API_KEY || '',
     profile: process.env.MANUS_AGENT_PROFILE || 'manus-1.6',
-    pollIntervalMs: parseInt(process.env.MANUS_POLL_INTERVAL_MS || '15000', 10),
-    pollTimeoutMs: parseInt(process.env.MANUS_POLL_TIMEOUT_MS || String(60 * 60 * 1000), 10),
   },
   search: {
     tavily: process.env.TAVILY_API_KEY || '',

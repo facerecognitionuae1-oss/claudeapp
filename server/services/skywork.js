@@ -8,9 +8,9 @@ const http = require('http');
 const crypto = require('crypto');
 const config = require('../config');
 
-const GATEWAY = config.skywork.gatewayUrl;
-const OVERALL_MS = Math.max(60 * 1000, Number(config.skywork.timeoutMs) || 30 * 60 * 1000);
-const IDLE_MS = Math.max(60 * 1000, Number(config.skywork.idleMs) || 12 * 60 * 1000);
+const GATEWAY = process.env.SKYWORK_GATEWAY_URL || 'https://api-tools.skywork.ai/theme-gateway';
+const OVERALL_MIN = parseInt(process.env.SKYWORK_TIMEOUT_MIN || '30', 10);   // whole job
+const IDLE_MIN = parseInt(process.env.SKYWORK_IDLE_MIN || '12', 10);         // max silence between events
 
 function skyworkConfigured() { return !!config.skywork.key; }
 
@@ -39,10 +39,10 @@ function ssePost(url, payload, headers, onProgress) {
     const ok = (v) => { if (settled) return; settled = true; clearTimers(); resolve(v); };
 
     const state = { downloadUrl: '', sawActivity: false };
-    overall = setTimeout(() => fail(new Error(`Skywork timed out: no finished deck after ${Math.round(OVERALL_MS / 60000)} min`)), OVERALL_MS);
+    overall = setTimeout(() => fail(new Error(`Skywork timed out: no finished deck after ${OVERALL_MIN} min`)), OVERALL_MIN * 60 * 1000);
     const bumpIdle = () => {
       clearTimeout(idle);
-      idle = setTimeout(() => fail(new Error(`Skywork stream went silent for ${Math.round(IDLE_MS / 60000)} min - treating as failed`)), IDLE_MS);
+      idle = setTimeout(() => fail(new Error(`Skywork stream went silent for ${IDLE_MIN} min — treating as failed`)), IDLE_MIN * 60 * 1000);
     };
 
     req.on('error', (e) => fail(new Error('Skywork connection error: ' + e.message)));
@@ -71,6 +71,11 @@ function ssePost(url, payload, headers, onProgress) {
             state.downloadUrl = data.download_url || '';
             if (!state.downloadUrl) return fail(new Error('Skywork: completion event without download_url'));
           }
+        } else if (evName === 'progress') {
+          state.sawActivity = true;
+          if (onProgress) { try { onProgress({ progress: data.percentage, stage: data.message || 'design', phase: 'progress' }); } catch (e) {} }
+        } else if (evName === 'success') {
+          state.downloadUrl = data.file_url || state.downloadUrl;
         } else if (evName === 'error') {
           const msg = data.message || JSON.stringify(data);
           if (/insufficient benefit|quota|credit/i.test(msg)) return fail(new Error('Skywork credits/plan exhausted: ' + msg));
@@ -162,6 +167,26 @@ async function generatePpt(opts) {
   return { buf, url: state.downloadUrl };
 }
 
+/**
+ * Generate a designed image (poster / infographic / logo) via Skywork Design.
+ * opts: { prompt, aspectRatio ('3:4' etc), resolution ('1K'|'2K'|'4K'), onProgress }
+ * Returns { buf, url } — PNG.
+ */
+async function generateDesign(opts) {
+  const { prompt, aspectRatio = '', resolution = '2K', onProgress } = opts;
+  const payload = { title: String(prompt).slice(0, 60), content: String(prompt).slice(0, 6000), style: {}, options: { resolution }, source_platform: '' };
+  if (aspectRatio) payload.style.aspect_ratio = aspectRatio;
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'text/event-stream',
+    'Authorization': 'Bearer ' + config.skywork.key,
+  };
+  const state = await ssePost(GATEWAY + '/api/sse/image/create', payload, headers, onProgress);
+  if (!state.downloadUrl) throw new Error('Skywork Design: stream ended without an image');
+  const buf = await download(state.downloadUrl);
+  return { buf, url: state.downloadUrl };
+}
+
 /** Upload a file buffer to Skywork OSS (for template imitation / reference files). */
 async function uploadOss(buf, filename, mime) {
   mime = mime || 'application/octet-stream';
@@ -183,4 +208,4 @@ async function uploadOss(buf, filename, mime) {
   return data.url;
 }
 
-module.exports = { skyworkConfigured, generatePpt, uploadOss };
+module.exports = { skyworkConfigured, generatePpt, generateDesign, uploadOss };

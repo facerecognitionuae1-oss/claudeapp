@@ -75,7 +75,7 @@ router.post('/', requireWorkspace, async (req, res) => {
     const { skyworkConfigured, generatePpt } = require('../services/skywork');
     const useManus = manusConfigured();
     // Engine preference: PPT_ENGINE env forces one; otherwise Skywork > Manus > Claude.
-    const forced = config.pptEngine;
+    const forced = (process.env.PPT_ENGINE || '').toLowerCase();
     const engine = (forced === 'skywork' && skyworkConfigured()) ? 'skywork'
       : (forced === 'manus' && useManus) ? 'manus'
       : (forced === 'claude') ? 'claude'
@@ -109,14 +109,14 @@ router.post('/', requireWorkspace, async (req, res) => {
           try {
             const skLang = language === 'ar' ? 'Arabic' : 'English';
             const rtlRule = arabicSlideQualityRule(language);
-            const skyworkSlides = Math.max(4, Math.min(20, Number(config.skywork.maxSlides) || 8));
-            const skQuery = `${(instructions || ws.brief || ws.title || 'Briefing deck').trim().slice(0, 1200)} - presentation in ${skLang}. Aim for ${skyworkSlides} highly polished slides unless the user's instructions explicitly require more.${focused ? ' Cover only the points requested above.' : ''}${rtlRule ? '\n\n' + rtlRule : ''}`;
+            const skQuery = `${(instructions || ws.brief || ws.title || 'Briefing deck').trim().slice(0, 1200)} — presentation in ${skLang}.${focused ? ' Cover only the points requested above.' : ''}`;
             const skReference = 'BACKGROUND RESEARCH (use freely for facts and data — structure and design are entirely up to you):\n' + plan.text.slice(0, 28000)
-              + (rtlRule ? '\n\nFINAL ARABIC TEXT QA:\n' + rtlRule : '')
               + '\n\nSOURCE MATERIAL:\n' + context.slice(0, 28000);
             let lastProgressWrite = 0;
             const { buf } = await generatePpt({
-              query: skQuery, language: skLang, reference: skReference,
+              query: skQuery + (rtlRule ? '\n\n' + rtlRule : ''),
+              language: skLang,
+              reference: skReference + (rtlRule ? '\n\nFINAL ARABIC TEXT QA:\n' + rtlRule : ''),
               onProgress: ({ progress, stage }) => {
                 const now = Date.now();
                 if (now - lastProgressWrite < 15000) return; // throttle DB writes
@@ -196,15 +196,26 @@ ${context.slice(0, 40000)}`;
         if (!spec || !Array.isArray(spec.slides)) throw new Error('deck specification unparseable');
 
         const images = {};
-        if (cfg.providers.openai.key) {
-          const { generateImage } = require('../services/images');
+        {
+          // Slide imagery: Skywork Design first (premium designed visuals), OpenAI as fallback.
+          const { skyworkConfigured: skDesignOk, generateDesign } = require('../services/skywork');
           const styleSuffix = (spec.theme?.image_style ? ` Style: ${spec.theme.image_style}.` : '')
-            + ' Ultra-detailed, premium editorial quality, cinematic lighting, layered depth, professional composition.';
+            + ' Ultra-detailed, premium editorial quality, cinematic lighting, layered depth, professional composition. No words, letters or logos in the image.';
           const jobs = [];
           if (spec.image) jobs.push(['cover', spec.image]);
           (spec.slides || []).forEach((sl2, i2) => { if (sl2.image && jobs.length < 6) jobs.push(['s' + i2, sl2.image]); });
-          const done = await Promise.all(jobs.map(async ([k, p]) => [k, await generateImage(p + styleSuffix)]));
-          for (const [k, buf] of done) if (buf) images[k] = buf;
+          if (skDesignOk() && jobs.length) {
+            const done = await Promise.all(jobs.map(async ([k, pr]) => {
+              try { const { buf } = await generateDesign({ prompt: pr + styleSuffix, aspectRatio: '16:9', resolution: '1K' }); return [k, buf]; }
+              catch (e) { console.warn('[pipeline] Skywork design image failed:', e.message); return [k, null]; }
+            }));
+            for (const [k, buf] of done) if (buf) images[k] = buf;
+          }
+          if (!Object.keys(images).length && cfg.providers.openai.key && jobs.length) {
+            const { generateImage } = require('../services/images');
+            const done = await Promise.all(jobs.map(async ([k, pr]) => [k, await generateImage(pr + styleSuffix)]));
+            for (const [k, buf] of done) if (buf) images[k] = buf;
+          }
         }
 
         const fileBase = `deck-${ws.id.slice(0, 8)}-${Date.now()}`;
@@ -220,11 +231,60 @@ ${context.slice(0, 40000)}`;
         console.warn('[pipeline] failed:', err.message);
         await store.updateOutput(output.id, {
           title: 'Briefing Deck — pipeline failed: ' + String(err.message).slice(0, 90),
-          content: JSON.stringify({ status: 'error', error: String(err.message || err) }),
+          content: JSON.stringify({ status: 'error' }),
         }).catch(() => {});
       }
     });
     return;
+  }
+
+  if (type === 'infographic') {
+    const { skyworkConfigured: skOk, generateDesign } = require('../services/skywork');
+    if (skOk()) {
+      // Skywork Design produces a real designed PNG. Runs in background like decks.
+      const output = await store.addOutput({
+        id: uuid(), workspace_id: ws.id, type: 'infographic', format: 'png',
+        title: 'Infographic (GPT+Skywork \u2014 generating\u2026)', file_name: '',
+        content: JSON.stringify({ status: 'processing', pipeline: 'GPT+Skywork' }),
+        provider: 'GPT+Skywork', created_at: new Date().toISOString(),
+      });
+      logAction(req.user, 'generate', ws.id, 'infographic \u00b7 skywork');
+      res.status(201).json({ output, processing: true });
+
+      setImmediate(async () => {
+        try {
+          const contentProvider = cfg.providers.openai.key ? 'openai' : (cfg.providers.anthropic.key ? 'anthropic' : provider);
+          const plan = await ai.chat({
+            provider: contentProvider,
+            system: contentPlanSystem(language, focused, hasFiles, 'infographic'),
+            user: context.slice(0, 90000) + '\n\nWrite the infographic content plan now.',
+          });
+          const prompt = `A polished, professional single-page infographic${language === 'ar' ? ' in Arabic \u2014 ALL text in Arabic, right-to-left layout' : ' in English'}. ${(instructions || ws.brief || ws.title || '').trim().slice(0, 400)}
+Design a complete modern infographic: bold headline, clear sections, big stat numbers with labels, simple icons, flow arrows where relevant, cohesive contemporary palette, generous spacing. Render all text accurately and legibly. Content to include:
+${plan.text.slice(0, 3500)}`;
+          const { buf } = await generateDesign({ prompt, aspectRatio: '3:4', resolution: '2K' });
+          const fileName = `infographic-${ws.id.slice(0, 8)}-${Date.now()}.png`;
+          try { require('fs').writeFileSync(path.join(config.generatedDir, fileName), buf); } catch {}
+          await store.updateOutput(output.id, {
+            title: 'Infographic', file_name: fileName,
+            content: JSON.stringify({ engine: 'skywork-design', status: 'done' }), file_data: buf,
+          });
+          console.log('[pipeline] Skywork infographic ready:', output.id);
+        } catch (err) {
+          console.warn('[pipeline] Skywork infographic failed, falling back to SVG:', err.message);
+          try {
+            const out = await ai.chat({ provider: useProvider || provider, model, system: infographicSystem(language, focused, hasFiles), user: context + '\n\nGenerate the infographic SVG now.' });
+            await store.updateOutput(output.id, { title: 'Infographic', format: 'svg', content: out.text });
+          } catch (e2) {
+            await store.updateOutput(output.id, {
+              title: 'Infographic \u2014 failed: ' + String(err.message).slice(0, 80),
+              content: JSON.stringify({ status: 'error' }),
+            }).catch(() => {});
+          }
+        }
+      });
+      return;
+    }
   }
 
   const t = STUDIO_TYPES[type];
@@ -244,18 +304,23 @@ ${context.slice(0, 40000)}`;
 
 // Download a generated output
 router.get('/:outputId/download', requireWorkspace, async (req, res) => {
-  let o = await store.getOutput(req.params.outputId);
+  const o = await store.getOutput(req.params.outputId);
   if (!o || o.workspace_id !== req.workspace.id) return res.status(404).json({ error: 'Output not found' });
-  if (o.format === 'pptx') {
+  if (o.format === 'png') {
+    const data = await store.getOutputFile(o.id);
+    if (data && data.length) {
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Content-Disposition', `attachment; filename="${o.file_name || 'infographic.png'}"`);
+      return res.send(data);
+    }
+    if (o.file_name) return res.download(path.join(config.generatedDir, o.file_name), o.file_name);
     try {
       const meta = JSON.parse(o.content || '{}');
-      if (meta.manus_task_id && !o.file_name) {
-        const { refreshManusOutput } = require('../services/manus');
-        o = await refreshManusOutput(o);
-      }
-    } catch (err) {
-      if (err.message) return res.status(502).json({ error: `Could not refresh Manus output: ${err.message}` });
-    }
+      if (meta.status === 'processing') return res.status(409).json({ error: 'Still generating \u2014 try again shortly.' });
+    } catch {}
+    return res.status(404).json({ error: 'Image not found' });
+  }
+  if (o.format === 'pptx') {
     const data = await store.getOutputFile(o.id);
     if (data && data.length) {
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');

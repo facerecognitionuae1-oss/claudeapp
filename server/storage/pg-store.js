@@ -65,7 +65,7 @@ class PgStore {
     await this.q(
       `INSERT INTO files (id, workspace_id, original_name, stored_name, mime_type, size_bytes, extracted_text, content, file_data, uploaded_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-      [f.id, f.workspace_id, f.original_name, f.stored_name, f.mime_type, f.size_bytes, f.extracted_text, f.content || null, f.content || null, f.uploaded_at]);
+      [f.id, f.workspace_id, f.original_name, f.stored_name, f.mime_type, f.size_bytes, f.extracted_text, f.content || null, f.file_data || f.content || null, f.uploaded_at]);
     return f;
   }
   async listFiles(wsId) { return this.q('SELECT id, workspace_id, original_name, stored_name, mime_type, size_bytes, extracted_text, uploaded_at FROM files WHERE workspace_id=$1 ORDER BY uploaded_at', [wsId]); }

@@ -100,14 +100,13 @@ ${hasFiles ? '' : NO_DOCS_NOTE}
 
 CRITICAL LANGUAGE RULE: the ANSWER must be written in the same language as the EMPLOYEE QUESTION below — Arabic question → fully Arabic answer (including all section headings), English question → English answer — regardless of the workspace or interface language. EXCEPTION: if the question explicitly asks for a specific language (e.g. "icp core values in arabic", "اشرح بالإنجليزية"), answer FULLY in that requested language, headings included.
 
-CLEAN FORMAT RULE: this is chat, not a report. Do not include citations, [doc: ...] markers, source URLs, or a "References" section unless the employee explicitly asks for sources. If the answer depends on uncertain information, mention that briefly in normal prose.
-
-Answer naturally, like a capable assistant in a chat:
-- Match the employee's requested shape, length and tone.
-- If the request is simple, answer simply.
-- If the request needs analysis, use clear markdown sections only when they improve readability.
-- Do not add "Key points", "Uncertainty", "Next questions" or "References" by default.
-- Add a brief uncertainty or verification note only when it materially matters for accuracy, policy, legal, operational or source-sensitive work.`;
+CHAT STYLE RULE:
+- Answer naturally like a capable assistant, not as a fixed report template.
+- Match the user's shape: if they ask for one sentence, give one sentence; if they ask casually, answer casually; if they ask for a list/table/plan, use that format.
+- Do not force headings such as Answer, Key points, Uncertainty, Next questions, or References.
+- Do not show citations, [doc: ...] markers, source lists, or web references in normal chat answers unless the employee explicitly asks for sources.
+- Be concise by default. Expand only when the employee asks for detail or the task genuinely needs it.
+- If evidence is weak, say that briefly in plain language inside the answer instead of creating a formal section.`;
 }
 
 const STUDIO_TYPES = {
@@ -193,18 +192,14 @@ TOPIC FIDELITY — READ TWICE:
 - When no documents are provided, draw on your deepest general knowledge of the subject: real facts, mandates, services, figures, history. Be specific, never vague filler.
 
 DESIGN BRIEF — MOST IMPORTANT PART:
-- FULL RESET: do not produce a normal corporate template. You are designing at the level of a cinematic government cyber/intelligence keynote. Every slide must feel custom-built, with a designed background, visual metaphor, panel system, icon system, or data/flow composition.
 - You are designing at the level of a top-tier agency keynote: modern, eye-popping, confident — never dated, cramped or "office clip-art" tacky. Creativity comes from composition and restraint, not from wild colors.
 - COLOR LOGIC, in this exact order: (1) if the employee states colors/brand/mood — in Arabic or English — follow it EXACTLY; (2) else if the subject is UAEICP / ICP / UAE government identity, design a refined modern take on the UAE federal identity: charcoal 232323, gold B68A35, warm white, restrained UAE-flag accents (red C3002F, green 007A3D); (3) otherwise invent a distinctive palette suited to the subject's character.
-- UAE NATIONAL-SECURITY STYLE TARGET when relevant: cinematic black/dark-charcoal canvas, metallic gold HUD linework, UAE flag fabric, Dubai skyline/Burj Khalifa cues, glowing UAE map or world-network overlays, cyber shield/lock/AI/quantum icon medallions, red vs green threat contrasts, thin gold frames, bilingual Arabic/English hierarchy where useful, dense but organized infographic panels. The result should feel like a high-end government cyber/intelligence briefing, not a corporate template.
 - Readability first: strong contrast between "text" and "bg"/"panel". All colors are 6-digit hex WITHOUT '#'.
 
 DESIGN PRINCIPLES (non-negotiable):
-- No plain bullet pages. If a slide has bullets, wrap them in a designed composition: gold-framed panel, comparison grid, icon row, timeline, map/HUD zone, alert strip, or full-bleed visual overlay.
 - Generous whitespace; ONE idea per slide; max 5 bullets per slide, each ≤ 10 words.
 - 60-30-10 color balance: dominant background, secondary panel, accent used sparingly for emphasis only.
 - Use "design.blocks" boldly for editorial color-blocking on at least a third of the slides — split panels, full-height bands, oversized off-canvas circles — vary the composition on every slide.
-- For UAE/cyber/security decks, use design.blocks to create gold-framed panels, red/green comparison zones, map/HUD areas, footer alert strips and icon rows. Prefer full-bleed cover and chapter slides with dark overlays.
 - Big type for big statements (title_size 30-40 on hero moments); muted small labels elsewhere.
 - Never place text over a busy area without a solid or overlaid block behind it.
 
@@ -219,7 +214,7 @@ Return ONLY valid JSON (no markdown fences); every human-visible string in the r
     "font": "Calibri | Arial | Georgia | Verdana | Trebuchet MS | Times New Roman",
     "style": "geometric | circles | dots | bars | waves | minimal",
     "heading_font": "optional display font for titles (same whitelist as font)",
-    "image_style": "shared art direction for all images, e.g. 'cinematic UAE national security cyber briefing, black and metallic gold HUD interface, UAE flag fabric, glowing map networks, premium 3D editorial render'",
+    "image_style": "shared art direction for all images, e.g. 'sleek futuristic 3D render, deep blue and magenta palette, soft studio glow'",
     "dark": true
   },
   "slides": [

@@ -34,7 +34,7 @@ router.post('/', requireWorkspace, upload.array('files', 20), async (req, res) =
       mime_type: f.mimetype, size_bytes: f.size,
       extracted_text: text, content, uploaded_at: new Date().toISOString(),
     });
-    const { extracted_text, content: _content, file_data, ...pub } = rec;
+    const { extracted_text, ...pub } = rec;
     saved.push({ ...pub, has_text: !!(text || '').trim() });
   }
   await store.updateWorkspace(req.workspace.id, {});

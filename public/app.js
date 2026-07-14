@@ -12,7 +12,7 @@
     providers: [],
     provider: localStorage.getItem('provider') || 'demo',
     busy: {},
-    logo: '/assets/logo.png',
+    logo: '/assets/logo.svg',
     pendingFiles: [],
     draft: {},
     createStep: '',
@@ -22,9 +22,6 @@
     studioDraft: '',
     web: localStorage.getItem('web') === '1',
     searchAvailable: false,
-    scrollTarget: '',
-    msgHtmlCache: new Map(),
-    assistTempMessages: [],
   };
 
   const t = k => (I18N[S.lang] && I18N[S.lang][k]) || I18N.en[k] || k;
@@ -32,49 +29,24 @@
   const app = document.getElementById('app');
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const attrJson = v => JSON.stringify(v).replace(/"/g, '&quot;');
-  const isRtlText = s => /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(String(s || ''));
-  const msgDir = s => isRtlText(s) ? 'rtl' : 'ltr';
-  const outputMeta = o => { try { return JSON.parse(o.content || '{}'); } catch { return {}; } };
   // pptx outputs are ready only once a file exists; Manus decks generate in the background
   const outInfo = o => {
-    if (o.format !== 'pptx' || o.file_name) return { ready: true, processing: false };
-    const meta = outputMeta(o);
-    const st = meta.status || '';
-    const labels = {
-      processing: t('generating'),
-      running: t('manusRunning'),
-      waiting: t('manusWaiting'),
-      timeout: t('manusTimeout'),
-      no_file: t('manusNoFile'),
-      error: meta.error || t('manusError'),
-      stopped: t('manusStopped'),
-    };
-    return {
-      ready: false,
-      processing: ['processing', 'running', 'waiting'].includes(st),
-      needsCheck: ['processing', 'running', 'waiting'].includes(st),
-      canRetry: ['timeout', 'no_file', 'stopped', 'error'].includes(st),
-      status: st,
-      label: labels[st] || t('notReady'),
-      taskUrl: meta.manus_task_url || '',
-    };
+    if ((o.format !== 'pptx' && o.format !== 'png') || o.file_name) return { ready: true, processing: false };
+    let st = ''; try { st = JSON.parse(o.content || '{}').status || ''; } catch {}
+    return { ready: false, processing: st === 'processing' };
   };
   const outActions = (o, dl) => {
     const oi = outInfo(o);
-    if (oi.ready) return (o.format !== 'pptx' ? `<button class="btn btn-ghost btn-sm" onclick="A.viewOutput('${o.id}')">${t('view')}</button>` : '') +
+    if (oi.ready) return ((o.format !== 'pptx' && o.format !== 'png') ? `<button class="btn btn-ghost btn-sm" onclick="A.viewOutput('${o.id}')">${t('view')}</button>` : '') +
       `<button class="btn btn-primary btn-sm" onclick="A.${dl}('${o.id}')">${t('download')}</button>`;
-    const spin = oi.processing ? '<span class="spinner dark" style="width:12px;height:12px"></span>' : '';
-    return `<span class="badge ${oi.status === 'error' ? 'low' : 'mode'}" style="display:inline-flex;align-items:center;gap:7px">${spin} ${esc(oi.label)}</span>`
-      + (oi.canRetry ? ` <button class="btn btn-primary btn-sm" onclick="A.${dl}('${o.id}')">${t('retryDownload')}</button>` : '')
-      + (oi.taskUrl ? ` <a class="btn btn-ghost btn-sm" href="${esc(oi.taskUrl)}" target="_blank" rel="noopener">${t('openManus')}</a>` : '');
+    return oi.processing ? `<span class="badge mode" style="display:inline-flex;align-items:center;gap:7px"><span class="spinner dark" style="width:12px;height:12px"></span> ${t('generating')}</span>`
+      : `<button class="btn btn-ghost btn-sm" onclick="A.${dl}('${o.id}')">↻ ${t('retryCheck')}</button>`;
   };
 
   // Minimal markdown renderer (headings, bold, italics, code, lists, tables, paragraphs)
   function md(src) {
     const lines = String(src || '').split('\n');
     let html = '', inUl = false, inOl = false, inTable = false;
-    const ulRe = /^\s*(?:[-*]|[•–—])\s+/;
-    const olRe = /^\s*(?:\d+|[٠-٩]+|[۰-۹]+)[.)]\s+/;
     const closeLists = () => { if (inUl) { html += '</ul>'; inUl = false; } if (inOl) { html += '</ol>'; inOl = false; } if (inTable) { html += '</table>'; inTable = false; } };
     const inline = s => esc(s)
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
@@ -92,34 +64,14 @@
       if (inTable) { html += '</table>'; inTable = false; }
       const h = line.match(/^(#{1,4})\s+(.*)/);
       if (h) { closeLists(); html += `<h${h[1].length + 1}>${inline(h[2])}</h${h[1].length + 1}>`; continue; }
-      if (ulRe.test(line)) { if (!inUl) { closeLists(); html += '<ul>'; inUl = true; } html += `<li>${inline(line.replace(ulRe, ''))}</li>`; continue; }
-      if (olRe.test(line)) { if (!inOl) { closeLists(); html += '<ol>'; inOl = true; } html += `<li>${inline(line.replace(olRe, ''))}</li>`; continue; }
+      if (/^\s*[-*]\s+/.test(line)) { if (!inUl) { closeLists(); html += '<ul>'; inUl = true; } html += `<li>${inline(line.replace(/^\s*[-*]\s+/, ''))}</li>`; continue; }
+      if (/^\s*\d+\.\s+/.test(line)) { if (!inOl) { closeLists(); html += '<ol>'; inOl = true; } html += `<li>${inline(line.replace(/^\s*\d+\.\s+/, ''))}</li>`; continue; }
       closeLists();
       if (line.trim() === '') continue;
       html += `<p>${inline(line)}</p>`;
     }
     closeLists();
     return html;
-  }
-
-  function renderMsg(m, withWho) {
-    const key = [m.id || '', m.role || '', m.provider || '', m.model || '', m.content || '', withWho ? 'who' : 'plain'].join('|');
-    if (S.msgHtmlCache.has(key)) return S.msgHtmlCache.get(key);
-    const dir = msgDir(m.content);
-    const who = withWho ? `<div class="who">${m.role === 'user' ? esc(S.user.username) : esc(m.provider ? `${m.provider}${m.model && m.model !== 'demo' ? ' · ' + m.model : ''}` : 'AI')}</div>` : '';
-    const body = m.role === 'assistant' ? md(m.content) : esc(m.content);
-    const html = `<div class="msg ${m.role} ${dir}" dir="${dir}">${who}${body}</div>`;
-    if (S.msgHtmlCache.size > 600) S.msgHtmlCache.clear();
-    S.msgHtmlCache.set(key, html);
-    return html;
-  }
-
-  function renderMsgList(messages, withWho) {
-    const all = messages || [];
-    const shown = all.slice(-80);
-    const hidden = all.length - shown.length;
-    return (hidden > 0 ? `<div class="history-trim">${hidden} older messages hidden for speed. Export the workspace for full history.</div>` : '')
-      + shown.map(m => renderMsg(m, withWho)).join('');
   }
 
   function toast(msg, isErr) {
@@ -157,26 +109,6 @@
   }
 
   // ───────────────────────── views ─────────────────────────
-
-  function chatHistoryNav() {
-    if (S.view !== 'assistant') return '';
-    const b = S.chatWs;
-    const visibleChats = S.chats.slice(0, 80);
-    return `
-      <div class="side-history">
-        <div class="side-history-head">
-          <span>${t('chatHistory')}</span>
-          <button type="button" class="side-new-chat" onclick="A.newChat()" ${S.busy.newChat ? 'disabled' : ''}>+</button>
-        </div>
-        <div class="side-history-list">
-          ${visibleChats.map(c => `<div class="chat-item ${b && b.workspace.id === c.id ? 'active' : ''}" onclick="A.openChat('${c.id}')">
-            <div class="ci-main"><div class="ci-title">${esc(c.title)}</div><div class="ci-when">${new Date(c.updated_at).toLocaleDateString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</div></div>
-            <button type="button" class="ci-delete" title="${t('delete')}" onclick="event.stopPropagation();A.deleteChat('${c.id}')">×</button>
-          </div>`).join('') || `<div class="history-trim">${t('newChat')}</div>`}
-          ${S.chats.length > visibleChats.length ? `<div class="history-trim">${S.chats.length - visibleChats.length} older chats hidden for speed.</div>` : ''}
-        </div>
-      </div>`;
-  }
 
   function langSelect(cls) {
     return `<select class="${cls || 'input'}" onchange="A.setLang(this.value)">
@@ -228,12 +160,11 @@
         <button class="btn btn-primary btn-sm" onclick="A.logout()">${t('logout')}</button>
       </div>
       <div class="layout">
-        <nav class="sidebar ${S.view === 'assistant' ? 'with-history' : ''}">
+        <nav class="sidebar">
           <button class="side-item ${S.view === 'assistant' ? 'active' : ''}" onclick="A.nav('assistant')">🤖 ${t('assistant')}</button>
           <button class="side-item ${S.view === 'studio' ? 'active' : ''}" onclick="A.nav('studio')">✦ ${t('studio')}</button>
           <button class="side-item ${S.view === 'dashboard' || S.view === 'workspace' ? 'active' : ''}" onclick="A.nav('dashboard')">📁 ${t('analysisTool')}</button>
           ${u.role === 'admin' ? `<button class="side-item ${S.view === 'admin' ? 'active' : ''}" onclick="A.nav('admin')">⚙️ ${t('admin')}</button>` : ''}
-          ${chatHistoryNav()}
         </nav>
         <div class="content"><div class="main">${content}</div></div>
       </div>
@@ -244,16 +175,10 @@
     const b = S.chatWs;
     const busy = S.busy.assist;
     const outputs = b ? b.outputs : [];
-    const messages = (b ? b.messages : []).concat(S.assistTempMessages || []);
-    const empty = messages.length === 0;
+    const empty = !b || b.messages.length === 0;
     const hour = new Date().getHours();
     const greet = t(hour < 12 ? 'greetMorning' : hour < 17 ? 'greetAfternoon' : 'greetEvening');
-    const displayName = ((S.user && (S.user.username || S.user.full_name)) || '').trim().split(/\s+/)[0];
-    const greetingText = displayName
-      ? (S.lang === 'ar'
-        ? `${greet}، <bdi>${esc(displayName)}</bdi>`
-        : `${greet}, <bdi>${esc(displayName)}</bdi>`)
-      : esc(greet);
+    const firstName = ((S.user && (S.user.full_name || S.user.username)) || '').trim().split(/\s+/)[0];
     const composer = `
           <form class="composer" onsubmit="A.sendAssist(event)">
             ${(S.assistPending && S.assistPending.length) ? `<div class="chat-attach">${S.assistPending.map((f, i) =>
@@ -264,20 +189,23 @@
             <div class="composer-bar">
               <label class="cbtn" title="${t('attachFiles')}">\u{1F4CE}<input type="file" multiple hidden onchange="A.attachAssist(this)"></label>
               <div class="grow"></div>
-              <button type="button" class="cbtn web-toggle ${S.web ? 'on' : ''}" title="${S.searchAvailable ? t('webSearch') : t('webNotConfigured')}" onclick="A.toggleWeb()" ${S.searchAvailable ? '' : 'disabled'}>🌐</button>
-              <button type="button" class="cbtn" id="mic-btn" title="${t('voiceInput')}" onclick="A.toggleMic()">🎙</button>
+              <button type="button" class="cbtn" id="mic-btn" title="${t('voiceInput')}" onclick="A.toggleMic()">\u{1F3A4}</button>
               <button class="send-btn" ${busy ? 'disabled' : ''} title="${t('send')}">\u2191</button>
             </div>
           </form>`;
     return `
       <div class="assist-open">
+        <aside class="chat-side">
+          <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="A.newChat()">+ ${t('newChat')}</button>
+          ${S.chats.map(c => `<div class="chat-item ${b && b.workspace.id === c.id ? 'active' : ''}" onclick="A.openChat('${c.id}')"><div class="ci-title">${esc(c.title)}</div><div class="ci-when">${new Date(c.updated_at).toLocaleDateString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</div></div>`).join('')}
+        </aside>
         <section class="chat-main ${empty ? 'empty' : ''}">
-          <div class="chat-topbar">
-            <strong>${b ? esc(b.workspace.title) : t('assistant')}</strong>
+          ${!empty ? `<div class="chat-topbar">
+            <strong>${esc(b.workspace.title)}</strong>
             <div class="grow"></div>
             ${S.busy.gen ? `<span class="spinner dark"></span>` : ''}
-            ${b && !empty ? `<button class="btn btn-dark btn-sm" onclick="A.openGenFromChat()">\u2726 ${t('makeFromChat')}</button>` : ''}
-          </div>
+            <button class="btn btn-dark btn-sm" onclick="A.openGenFromChat()">\u2726 ${t('makeFromChat')}</button>
+          </div>` : ''}
           ${outputs.length ? `<div class="assist-outs">${outputs.map(o => { const oi = outInfo(o); return oi.ready
               ? `<button class="btn btn-ghost btn-sm" onclick="A.downloadChatOutput('${o.id}')">\u2B07 ${esc(o.title)}</button>`
               : oi.processing
@@ -287,11 +215,11 @@
             ${empty ? `
             <div class="greet">
               <div class="greet-ico">\u{1F916}</div>
-              <h1>${greetingText}</h1>
+              <h1>${esc(greet)}${firstName ? ', ' + esc(firstName) : ''}</h1>
               <p>${t('chatWelcomeBody')}</p>
             </div>` : `
             <div class="chat-col">
-              ${renderMsgList(messages, false)}
+              ${b.messages.map(m => `<div class="msg ${m.role}">${m.role === 'assistant' ? md(m.content) : esc(m.content)}</div>`).join('')}
               ${busy ? `<div class="msg assistant typing-msg"><span class="typing"><span></span><span></span><span></span></span></div>` : ''}
             </div>`}
           </div>
@@ -597,7 +525,11 @@
       <div class="card chat-box">
         <div class="chat-log" id="chat-log">
           ${b.messages.length === 0 ? `<div class="empty-state">${t('askPlaceholder')}</div>` : ''}
-          ${renderMsgList(b.messages, true)}
+          ${b.messages.map(m => `
+            <div class="msg ${m.role}">
+              <div class="who">${m.role === 'user' ? esc(S.user.username) : esc(m.provider ? `${m.provider}${m.model && m.model !== 'demo' ? ' · ' + m.model : ''}` : 'AI')}</div>
+              ${m.role === 'assistant' ? md(m.content) : esc(m.content)}
+            </div>`).join('')}
           ${busy ? `<div class="msg assistant typing-msg"><span class="typing"><span></span><span></span><span></span></span></div>` : ''}
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px 0;background:#fff">
@@ -606,7 +538,6 @@
         <form class="chat-input" onsubmit="A.ask(event)">
           <textarea class="input" name="q" placeholder="${t('askPlaceholder')}" ${busy ? 'disabled' : ''}
             onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();this.form.requestSubmit();}"></textarea>
-          <button type="button" class="icon-btn web-toggle ${S.web ? 'on' : ''}" title="${S.searchAvailable ? t('webSearch') : t('webNotConfigured')}" onclick="A.toggleWeb()" ${S.searchAvailable ? '' : 'disabled'}>🌐</button>
           <button class="btn btn-primary" ${busy ? 'disabled' : ''}>${t('send')}</button>
         </form>
       </div>`;
@@ -769,32 +700,19 @@
     else if (S.view === 'workspace') content = wsView();
     else if (S.view === 'admin') content = adminView();
     app.innerHTML = shell(content) + (S.modal || '');
+    const log = $('#chat-log');
+    if (log) log.scrollTop = log.scrollHeight;
+    const alog = $('#assist-log');
+    if (alog) alog.scrollTop = alog.scrollHeight;
     bindDropzone();
-    applyScrollTarget();
     scheduleOutputPoll();
   }
 
-  function applyScrollTarget() {
-    const target = S.scrollTarget;
-    S.scrollTarget = '';
-    if (!target) return;
-    const isAssist = target.startsWith('assist');
-    const log = $(isAssist ? '#assist-log' : '#chat-log');
-    if (!log) return;
-    if (target.endsWith('bottom')) {
-      log.scrollTop = log.scrollHeight;
-      return;
-    }
-    const messages = log.querySelectorAll('.msg.assistant:not(.typing-msg)');
-    const msg = messages[messages.length - 1];
-    if (msg) log.scrollTop = Math.max(0, msg.offsetTop - log.offsetTop - 14);
-  }
-
-  // While a deck is generating, silently re-fetch the current workspace every 30s.
+  // While a Manus deck is generating, silently re-fetch the current workspace every 30s
   function scheduleOutputPoll() {
     clearTimeout(S._outPoll);
     const bundle = S.view === 'studio' ? S.studioWs : S.view === 'assistant' ? S.chatWs : S.view === 'workspace' ? S.ws : null;
-    if (!bundle || !(bundle.outputs || []).some(o => outInfo(o).needsCheck)) return;
+    if (!bundle || !(bundle.outputs || []).some(o => outInfo(o).processing)) return;
     S._outPoll = setTimeout(async () => {
       try {
         const fresh = await api('/workspaces/' + bundle.workspace.id);
@@ -818,12 +736,6 @@
     setLang,
     logout,
     setProvider(p) { S.provider = p; localStorage.setItem('provider', p); },
-    toggleWeb() {
-      if (!S.searchAvailable) return toast(t('webNotConfigured'), true);
-      S.web = !S.web;
-      localStorage.setItem('web', S.web ? '1' : '0');
-      render();
-    },
     // Never default to demo when a real provider is configured
     _normalizeProvider() {
       const cur = S.providers.find(p => p.id === S.provider);
@@ -832,13 +744,7 @@
         if (first) { S.provider = first.id; localStorage.setItem('provider', first.id); }
       }
     },
-    nav(view) {
-      S.view = view; S.modal = ''; render();
-      if (view === 'assistant') A.loadAssistant(true);
-      else if (view === 'studio') A.loadStudioHome(true);
-      else if (view === 'dashboard') A.loadDashboard(true);
-      else if (view === 'admin') A.loadAdmin();
-    },
+    nav(view) { S.view = view; S.modal = ''; if (view === 'assistant') A.loadAssistant(); else if (view === 'studio') A.loadStudioHome(); else if (view === 'dashboard') A.loadDashboard(); else if (view === 'admin') A.loadAdmin(); else render(); },
     closeModal() { S.modal = ''; render(); },
 
     async login(e) {
@@ -867,11 +773,11 @@
       } catch (err) { toast(err.message, true); }
     },
 
-    async loadDashboard(background) {
+    async loadDashboard() {
       try {
         const data = await api('/workspaces' + (S.showArchived ? '?archived=1' : ''));
         S.workspaces = data.workspaces.filter(w => w.kind !== 'chat' && w.kind !== 'studio'); S.view = 'dashboard'; render();
-      } catch (err) { if (!background) toast(err.message, true); }
+      } catch (err) { toast(err.message, true); }
     },
     toggleArchived(v) { S.showArchived = v; A.loadDashboard(); },
     openNewWs() {
@@ -996,15 +902,13 @@
       e.preventDefault();
       const ta = e.target.q; const q = ta.value.trim(); if (!q) return;
       S.ws.messages.push({ id: 'tmp', role: 'user', content: q, created_at: new Date().toISOString() });
-      S.busy.chat = true; S.scrollTarget = 'chat-bottom'; render();
+      S.busy.chat = true; render();
       try {
         const r = await api(`/workspaces/${S.ws.workspace.id}/chat`, { method: 'POST', body: JSON.stringify({ question: q, provider: S.provider, web: S.web }) });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true);
-        S.ws.messages = S.ws.messages.filter(m => m.id !== 'tmp').concat([r.question, r.answer]);
       } catch (err) { toast(err.message, true); }
       S.busy.chat = false;
-      S.scrollTarget = 'chat-answer';
-      render();
+      await A.refreshWs();
     },
 
     async generate(e) {
@@ -1073,11 +977,7 @@
     async _download(url) {
       try {
         const res = await fetch(url, { headers: { Authorization: 'Bearer ' + S.token } });
-        if (!res.ok) {
-          const ct = res.headers.get('content-type') || '';
-          const body = ct.includes('json') ? await res.json().catch(() => null) : await res.text().catch(() => '');
-          throw new Error((body && body.error) || body || t('error'));
-        }
+        if (!res.ok) throw new Error(t('error'));
         const blob = await res.blob();
         const cd = res.headers.get('content-disposition') || '';
         const m = cd.match(/filename="?([^";]+)"?/);
@@ -1101,13 +1001,13 @@
     },
 
     // standalone studio (text → file, no chat/files needed)
-    async loadStudioHome(background) {
+    async loadStudioHome() {
       try {
         const data = await api('/workspaces');
         const ws = data.workspaces.find(w => w.kind === 'studio');
         S.studioWs = ws ? await api('/workspaces/' + ws.id) : null;
         S.view = 'studio'; render();
-      } catch (err) { if (!background) toast(err.message, true); }
+      } catch (err) { toast(err.message, true); }
     },
     async genStudio(e) {
       e.preventDefault();
@@ -1137,51 +1037,18 @@
     downloadStudioHomeOutput(id) { A._download(`/api/workspaces/${S.studioWs.workspace.id}/studio/${id}/download`); },
 
     // assistant (general chat)
-    async loadAssistant(background) {
+    async loadAssistant() {
       try {
         const data = await api('/workspaces');
         S.chats = data.workspaces.filter(w => w.kind === 'chat');
         if (S.chatWs && !S.chats.find(c => c.id === S.chatWs.workspace.id)) S.chatWs = null;
         S.view = 'assistant'; render();
-      } catch (err) { if (!background) toast(err.message, true); }
-    },
-    async newChat() {
-      if (S.busy.newChat) return;
-      S.busy.newChat = true;
-      S.assistPending = [];
-      S.assistDraft = '';
-      S.assistTempMessages = [];
-      try {
-        const data = await api('/workspaces', {
-          method: 'POST',
-          body: JSON.stringify({ title: t('newChat'), kind: 'chat', language: S.lang, mode: 'unguarded' }),
-        });
-        S.chats.unshift(data.workspace);
-        S.chatWs = await api('/workspaces/' + data.workspace.id);
-      } catch (err) {
-        toast(err.message, true);
-      } finally {
-        S.busy.newChat = false;
-        render();
-      }
-    },
-    async openChat(id) {
-      try { S.assistTempMessages = []; S.chatWs = await api('/workspaces/' + id); render(); }
-      catch (err) { toast(err.message, true); }
-    },
-    async deleteChat(id) {
-      if (!confirm(t('confirmDelete'))) return;
-      try {
-        await api('/workspaces/' + id, { method: 'DELETE' });
-        S.chats = S.chats.filter(c => c.id !== id);
-        if (S.chatWs && S.chatWs.workspace.id === id) {
-          S.chatWs = null;
-          S.assistTempMessages = [];
-          S.assistDraft = '';
-          S.assistPending = [];
-        }
-        render();
       } catch (err) { toast(err.message, true); }
+    },
+    newChat() { S.chatWs = null; S.assistPending = []; S.assistDraft = ''; render(); },
+    async openChat(id) {
+      try { S.chatWs = await api('/workspaces/' + id); render(); }
+      catch (err) { toast(err.message, true); }
     },
     draftAssist(v) { S.assistDraft = v; },
     attachAssist(input) {
@@ -1216,22 +1083,11 @@
     },
     async sendAssist(e) {
       e.preventDefault();
-      if (S.busy.assist) return;
-      const form = e.currentTarget || e.target;
-      const ta = form.querySelector('textarea[name="q"]');
-      let q = ta ? ta.value.trim() : '';
-      S.assistDraft = q;
+      const ta = e.target.q; let q = ta.value.trim();
       const pend = S.assistPending || [];
       if (!q && !pend.length) return;
       if (S.recog) { try { S.recog.stop(); } catch {} }
-      const hadChat = !!S.chatWs;
-      const optimistic = { id: 'tmp-' + Date.now(), role: 'user', content: q || t('analyzeAttached'), created_at: new Date().toISOString() };
-      if (hadChat) S.chatWs.messages.push(optimistic);
-      else S.assistTempMessages = [optimistic];
-      S.assistDraft = '';
       S.busy.assist = true;
-      S.scrollTarget = 'assist-bottom';
-      render();
       try {
         if (!S.chatWs) {
           const title = (q || (pend[0] && pend[0].name) || 'Chat').slice(0, 60);
@@ -1248,17 +1104,13 @@
           S.assistPending = [];
         }
         S.assistDraft = '';
-        S.scrollTarget = 'assist-bottom';
+        S.chatWs.messages.push({ id: 'tmp', role: 'user', content: q, created_at: new Date().toISOString() });
         render();
         const r = await api(`/workspaces/${S.chatWs.workspace.id}/chat`, { method: 'POST', body: JSON.stringify({ question: q, provider: S.provider, web: S.web }) });
         if (r.fallbackError) toast('Provider failed, demo fallback used', true);
-        S.chatWs.messages = S.chatWs.messages.filter(m => !String(m.id || '').startsWith('tmp-')).concat([r.question, r.answer]);
       } catch (err) { toast(err.message, true); }
-      finally {
-        S.busy.assist = false;
-        S.assistTempMessages = [];
-      }
-      S.scrollTarget = 'assist-answer';
+      S.busy.assist = false;
+      if (S.chatWs) S.chatWs = await api('/workspaces/' + S.chatWs.workspace.id);
       render();
     },
     openGenFromChat() {
