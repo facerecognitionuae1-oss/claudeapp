@@ -81,41 +81,115 @@ router.get('/:id/export', requireWorkspace, async (req, res) => {
   const want = k => inc.includes(k);
   const a = analyses[0];
   const result = a ? (typeof a.result === 'string' ? JSON.parse(a.result) : a.result) : null;
+  const ar = ws.language === 'ar';
+  const L = ar ? {
+    title: 'تقرير مساحة العمل',
+    disclaimer: 'مساحة عمل الذكاء المؤسسي لموظفي الهيئة - داخلي. يتطلب مراجعة بشرية ولا يغني عن الاستشارة القانونية أو اعتماد المسؤول المباشر.',
+    created: 'تاريخ الإنشاء',
+    mode: 'النمط',
+    language: 'اللغة',
+    status: 'الحالة',
+    brief: 'الموجز',
+    none: '_لا يوجد_',
+    files: 'الملفات',
+    latestAnalysis: 'آخر تحليل',
+    executiveSummary: 'الملخص التنفيذي',
+    reviewAngle: 'زاوية المراجعة',
+    keyFindings: 'أبرز النتائج',
+    evidence: 'الأدلة',
+    contradictions: 'التعارضات',
+    missingInfo: 'المعلومات الناقصة',
+    risks: 'المخاطر والامتثال',
+    improvements: 'التحسينات',
+    priorities: 'أولويات الإجراء',
+    followUps: 'أسئلة المتابعة',
+    verification: 'يتطلب تحققاً بشرياً',
+    chat: 'سجل الأسئلة والأجوبة',
+    messages: 'رسائل',
+    outputs: 'المخرجات المنشأة',
+    notes: 'ملاحظات المراجعة البشرية',
+    q: 'سؤال',
+    a: 'إجابة',
+    confidence: 'الثقة',
+    speculative: '[افتراضي] ',
+    langValue: 'العربية',
+  } : {
+    title: 'Workspace Report',
+    disclaimer: 'UAEICP Employee Intelligence Workspace - INTERNAL. Requires human verification. Not a substitute for legal advice or supervisor approval.',
+    created: 'Created',
+    mode: 'Mode',
+    language: 'Language',
+    status: 'Status',
+    brief: 'Brief',
+    none: '_none_',
+    files: 'Files',
+    latestAnalysis: 'Latest Analysis',
+    executiveSummary: 'Executive Summary',
+    reviewAngle: 'Review Angle',
+    keyFindings: 'Key Findings',
+    evidence: 'Evidence',
+    contradictions: 'Contradictions',
+    missingInfo: 'Missing Information',
+    risks: 'Risks & Compliance',
+    improvements: 'Improvements',
+    priorities: 'Action Priorities',
+    followUps: 'Follow-up Questions',
+    verification: 'Human Verification Required',
+    chat: 'Q&A History',
+    messages: 'messages',
+    outputs: 'Generated Outputs',
+    notes: 'Human Review Notes',
+    q: 'Q',
+    a: 'A',
+    confidence: 'confidence',
+    speculative: '[SPECULATIVE] ',
+    langValue: 'English',
+  };
+  const modeLabels = ar ? { comprehensive: 'شامل', legal: 'قانوني', fraud: 'احتيال', policy: 'سياسات', operational: 'تشغيلي' } : {};
+  const statusLabels = ar ? { draft: 'مسودة', active: 'نشط', archived: 'مؤرشف' } : {};
+  const valueLabels = ar ? { high: 'عالٍ', medium: 'متوسط', low: 'منخفض', severe: 'مرتفع', critical: 'حرج' } : {};
+  const clean = v => String(v || '')
+    .replace(/\s*\[doc:[^\]]+\]/gi, '')
+    .replace(/\s*_?\(confidence:\s*[^)]+\)_?/gi, '')
+    .trim();
+  const labelValue = v => valueLabels[String(v || '').toLowerCase()] || v || '';
+  const modeLabel = modeLabels[ws.mode] || ws.mode;
+  const statusLabel = statusLabels[ws.status] || ws.status;
   const lines = [
-    `# Workspace Report — ${ws.title}`,
-    `> UAEICP Employee Intelligence Workspace — INTERNAL. Requires human verification. Not a substitute for legal advice or supervisor approval.`,
-    ``, `**Created:** ${ws.created_at}  `, `**Mode:** ${ws.mode}  `, `**Language:** ${ws.language}  `, `**Status:** ${ws.status}`,
-    ``, `## Brief`, ws.brief || '_none_',
-    ``, `## Files (${files.length})`,
+    `# ${L.title} - ${ws.title}`,
+    `> ${L.disclaimer}`,
+    ``, `**${L.created}:** ${ws.created_at}  `, `**${L.mode}:** ${modeLabel}  `, `**${L.language}:** ${ar ? L.langValue : ws.language}  `, `**${L.status}:** ${statusLabel}`,
+    ``, `## ${L.brief}`, ws.brief || L.none,
+    ``, `## ${L.files} (${files.length})`,
     ...files.map(f => `- ${f.original_name} (${Math.round((f.size_bytes || 0) / 1024)} KB)`),
   ];
   if (result && want('analysis')) {
-    lines.push('', '## Latest Analysis', '', `### Executive Summary`, result.executive_summary || '',
-      '', `### Review Angle`, result.review_angle || '',
-      '', `### Key Findings`,
-      ...(result.key_findings || []).map(k => `- ${k.speculative ? '[SPECULATIVE] ' : ''}${k.finding} _(confidence: ${k.confidence})_`),
-      '', `### Evidence`,
-      ...(result.evidence || []).map(e => `- ${e.point} ${e.citation || ''} _(${e.confidence})_`),
-      '', `### Contradictions`, ...(result.contradictions || []).map(c => `- ${c}`),
-      '', `### Missing Information`, ...(result.missing_information || []).map(m => `- ${m}`),
-      '', `### Risks & Compliance`,
-      ...(result.risks_compliance || []).map(r => `- **[${r.severity}]** ${r.risk} — ${r.note || ''}`),
-      '', `### Improvements`, ...(result.improvements || []).map(i => `- ${i}`),
-      '', `### Action Priorities`,
-      ...(result.action_priorities || []).sort((x, y) => x.priority - y.priority).map(p => `${p.priority}. ${p.action}`),
-      '', `### Follow-up Questions`, ...(result.follow_up_questions || []).map(q => `- ${q}`),
-      '', `### Human Verification Required`, ...(result.human_verification || []).map(h => `- ${h}`));
+    lines.push('', `## ${L.latestAnalysis}`, '', `### ${L.executiveSummary}`, clean(result.executive_summary),
+      '', `### ${L.reviewAngle}`, clean(result.review_angle),
+      '', `### ${L.keyFindings}`,
+      ...(result.key_findings || []).map(k => `- ${k.speculative ? L.speculative : ''}${clean(k.finding)} _(${L.confidence}: ${labelValue(k.confidence)})_`),
+      '', `### ${L.evidence}`,
+      ...(result.evidence || []).map(e => `- ${clean(e.point)} ${e.citation || ''} _(${labelValue(e.confidence)})_`),
+      '', `### ${L.contradictions}`, ...(result.contradictions || []).map(c => `- ${clean(c)}`),
+      '', `### ${L.missingInfo}`, ...(result.missing_information || []).map(m => `- ${clean(m)}`),
+      '', `### ${L.risks}`,
+      ...(result.risks_compliance || []).map(r => `- **[${labelValue(r.severity)}]** ${clean(r.risk)} - ${clean(r.note)}`),
+      '', `### ${L.improvements}`, ...(result.improvements || []).map(i => `- ${clean(i)}`),
+      '', `### ${L.priorities}`,
+      ...(result.action_priorities || []).sort((x, y) => x.priority - y.priority).map(p => `${p.priority}. ${clean(p.action)}`),
+      '', `### ${L.followUps}`, ...(result.follow_up_questions || []).map(q => `- ${clean(q)}`),
+      '', `### ${L.verification}`, ...(result.human_verification || []).map(h => `- ${clean(h)}`));
   }
   if (messages.length && want('chat')) {
-    lines.push('', `## Q&A History (${messages.length} messages)`);
-    for (const m of messages) lines.push('', `**${m.role === 'user' ? 'Q' : 'A'}${m.model ? ` (${m.provider}/${m.model})` : ''}:**`, m.content);
+    lines.push('', `## ${L.chat} (${messages.length} ${L.messages})`);
+    for (const m of messages) lines.push('', `**${m.role === 'user' ? L.q : L.a}${m.model ? ` (${m.provider}/${m.model})` : ''}:**`, m.content);
   }
   if (outputs.length && want('outputs')) {
-    lines.push('', `## Generated Outputs`);
+    lines.push('', `## ${L.outputs}`);
     for (const o of outputs) lines.push(`- [${o.type}] ${o.title} (${o.format}, ${o.created_at})`);
   }
   if (notes.length && want('notes')) {
-    lines.push('', `## Human Review Notes`);
+    lines.push('', `## ${L.notes}`);
     for (const n of notes) lines.push(`- ${n.created_at}: ${n.content}`);
   }
   const md = lines.join('\n');

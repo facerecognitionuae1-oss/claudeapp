@@ -61,12 +61,15 @@ async function webSearch(query) {
 }
 
 // Ready-to-inject context block.
-function formatSearch(out, query) {
+function formatSearch(out, query, language = 'en') {
   if (!out) return '';
   const lines = out.results.map((r, i) => `${i + 1}. ${r.title} — ${r.url}\n   ${r.content}`).join('\n');
+  const languageRule = language === 'ar'
+    ? 'The employee-facing answer/output must be in Arabic: translate useful search facts into natural Modern Standard Arabic, keep only official acronyms, product names, file names and URLs in English, and do not paste English snippets into the final text.'
+    : 'The employee-facing answer/output must remain in English unless the employee asks otherwise.';
   return `\n\nLIVE WEB SEARCH RESULTS (query: "${query}", retrieved ${new Date().toISOString().slice(0, 10)}):
 ${out.answer ? 'Summary: ' + out.answer + '\n' : ''}${lines}
-Use these only when helpful for current, real-world facts. Follow the active chat format rules: do not show web references unless the employee explicitly asks for sources. Treat search results as unverified secondary sources.`;
+Use these only when helpful for current, real-world facts. ${languageRule} Follow the active chat format rules: do not show web references unless the employee explicitly asks for sources. Treat search results as unverified secondary sources.`;
 }
 
 module.exports = { webSearch, formatSearch, searchConfigured };

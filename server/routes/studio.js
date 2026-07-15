@@ -25,6 +25,19 @@ const logAction = (user, action, wsId, detail) => {
     store.addLog({ id: require('uuid').v4(), user_id: user.id, username: user.username, action, workspace_id: wsId || null, detail: String(detail || '').slice(0, 400), created_at: new Date().toISOString() });
   } catch {}
 };
+const titleText = (language, en, ar) => language === 'ar' ? ar : en;
+const studioTitle = (type, language) => {
+  if (language !== 'ar') return STUDIO_TYPES[type]?.title || type;
+  return {
+    memo: 'مذكرة داخلية',
+    checklist: 'قائمة تحقق للخدمة',
+    case_summary: 'ملخص الحالة',
+    policy_comparison: 'مقارنة السياسات',
+    legal_review: 'مذكرة مراجعة قانونية وامتثال',
+    revised_draft: 'مسودة منقحة',
+    report: 'تقرير تحليل',
+  }[type] || STUDIO_TYPES[type]?.title || type;
+};
 router.use(requireAuth);
 
 router.get('/types', (req, res) => {
@@ -48,6 +61,7 @@ router.post('/', requireWorkspace, async (req, res) => {
   const messages = await store.listMessages(ws.id);
   const convo = messages.slice(-40).map(m => `${m.role === 'user' ? 'EMPLOYEE' : 'ASSISTANT'}: ${m.content}`).join('\n\n');
   const lastUser = [...messages].reverse().find(m => m.role === 'user');
+  const language = req.body?.language || detectLang(instructions) || (lastUser ? detectLang(lastUser.content) : null) || ws.language;
   // Live web search runs automatically whenever a search key is configured.
   let webBlock = '';
   {
@@ -55,7 +69,7 @@ router.post('/', requireWorkspace, async (req, res) => {
     if (searchConfigured()) {
       const q = (instructions || ws.brief || ws.title || '').trim().slice(0, 300);
       const found = await webSearch(q);
-      webBlock = formatSearch(found, q);
+      webBlock = formatSearch(found, q, language);
     }
   }
   const context = baseContext(ws, files) + webBlock
@@ -64,7 +78,6 @@ router.post('/', requireWorkspace, async (req, res) => {
       ? `\n\nEMPLOYEE ADDITIONAL INSTRUCTIONS (HIGHEST PRIORITY — follow exactly, respond in their language):\n${instructions}`
       : '');
 
-  const language = req.body?.language || detectLang(instructions) || (lastUser ? detectLang(lastUser.content) : null) || ws.language;
   // Claude is recommended for slide structure: prefer it for decks when configured.
   const cfg = require('../config');
   // Presentations & infographics need the strongest design model: always use Claude when configured.
@@ -85,7 +98,7 @@ router.post('/', requireWorkspace, async (req, res) => {
     // Respond IMMEDIATELY — the multi-AI pipeline runs in the background so nothing can time out.
     const output = await store.addOutput({
       id: uuid(), workspace_id: ws.id, type: 'pptx', format: 'pptx',
-      title: `Briefing Deck (${pipeLabel} — generating…)`, file_name: '',
+      title: `${titleText(language, 'Briefing Deck', 'عرض تقديمي')} (${pipeLabel} — ${titleText(language, 'generating…', 'قيد الإنشاء…')})`, file_name: '',
       content: JSON.stringify({ status: 'processing', pipeline: pipeLabel }),
       provider: pipeLabel, created_at: new Date().toISOString(),
     });
@@ -129,7 +142,7 @@ router.post('/', requireWorkspace, async (req, res) => {
             const fileName = `deck-${ws.id.slice(0, 8)}-${Date.now()}.pptx`;
             try { require('fs').writeFileSync(path.join(config.generatedDir, fileName), buf); } catch {}
             await store.updateOutput(output.id, {
-              title: 'Briefing Deck', file_name: fileName,
+              title: titleText(language, 'Briefing Deck', 'عرض تقديمي'), file_name: fileName,
               content: JSON.stringify({ engine: 'skywork', status: 'done' }), file_data: buf,
             });
             console.log('[pipeline] Skywork deck ready:', output.id);
@@ -223,14 +236,14 @@ ${context.slice(0, 40000)}`;
         let fileData = null;
         try { fileData = require('fs').readFileSync(path.join(config.generatedDir, fileName)); } catch {}
         await store.updateOutput(output.id, {
-          title: spec.title || 'Briefing Deck', file_name: fileName,
+          title: spec.title || titleText(language, 'Briefing Deck', 'عرض تقديمي'), file_name: fileName,
           content: JSON.stringify(spec), file_data: fileData,
         });
         console.log('[pipeline] deck ready:', output.id);
       } catch (err) {
         console.warn('[pipeline] failed:', err.message);
         await store.updateOutput(output.id, {
-          title: 'Briefing Deck — pipeline failed: ' + String(err.message).slice(0, 90),
+          title: titleText(language, 'Briefing Deck — pipeline failed: ', 'فشل إنشاء العرض التقديمي: ') + String(err.message).slice(0, 90),
           content: JSON.stringify({ status: 'error' }),
         }).catch(() => {});
       }
@@ -244,7 +257,7 @@ ${context.slice(0, 40000)}`;
       // Skywork Design produces a real designed PNG. Runs in background like decks.
       const output = await store.addOutput({
         id: uuid(), workspace_id: ws.id, type: 'infographic', format: 'png',
-        title: 'Infographic (GPT+Skywork \u2014 generating\u2026)', file_name: '',
+        title: `${titleText(language, 'Infographic', 'إنفوجرافيك')} (GPT+Skywork — ${titleText(language, 'generating…', 'قيد الإنشاء…')})`, file_name: '',
         content: JSON.stringify({ status: 'processing', pipeline: 'GPT+Skywork' }),
         provider: 'GPT+Skywork', created_at: new Date().toISOString(),
       });
@@ -266,7 +279,7 @@ ${plan.text.slice(0, 3500)}`;
           const fileName = `infographic-${ws.id.slice(0, 8)}-${Date.now()}.png`;
           try { require('fs').writeFileSync(path.join(config.generatedDir, fileName), buf); } catch {}
           await store.updateOutput(output.id, {
-            title: 'Infographic', file_name: fileName,
+            title: titleText(language, 'Infographic', 'إنفوجرافيك'), file_name: fileName,
             content: JSON.stringify({ engine: 'skywork-design', status: 'done' }), file_data: buf,
           });
           console.log('[pipeline] Skywork infographic ready:', output.id);
@@ -274,10 +287,10 @@ ${plan.text.slice(0, 3500)}`;
           console.warn('[pipeline] Skywork infographic failed, falling back to SVG:', err.message);
           try {
             const out = await ai.chat({ provider: useProvider || provider, model, system: infographicSystem(language, focused, hasFiles), user: context + '\n\nGenerate the infographic SVG now.' });
-            await store.updateOutput(output.id, { title: 'Infographic', format: 'svg', content: out.text });
+            await store.updateOutput(output.id, { title: titleText(language, 'Infographic', 'إنفوجرافيك'), format: 'svg', content: out.text });
           } catch (e2) {
             await store.updateOutput(output.id, {
-              title: 'Infographic \u2014 failed: ' + String(err.message).slice(0, 80),
+              title: titleText(language, 'Infographic — failed: ', 'فشل إنشاء الإنفوجرافيك: ') + String(err.message).slice(0, 80),
               content: JSON.stringify({ status: 'error' }),
             }).catch(() => {});
           }
@@ -292,10 +305,11 @@ ${plan.text.slice(0, 3500)}`;
   const out = await ai.chat({ provider: useProvider || provider, model, system: studioSystem(type, mode, language, focused, hasFiles), user: context + '\n\nGenerate the document now.' });
 
   let content = out.text;
-  if (format === 'json') content = JSON.stringify({ type, title: t.title, generated_at: new Date().toISOString(), body_markdown: out.text }, null, 2);
+  const localizedTitle = studioTitle(type, language);
+  if (format === 'json') content = JSON.stringify({ type, title: localizedTitle, generated_at: new Date().toISOString(), body_markdown: out.text }, null, 2);
   const output = await store.addOutput({
     id: uuid(), workspace_id: ws.id, type, format,
-    title: t.title, file_name: '', content,
+    title: localizedTitle, file_name: '', content,
     provider: out.provider, created_at: new Date().toISOString(),
   });
   logAction(req.user, 'generate', ws.id, `${type} · ${format}`);
@@ -336,7 +350,7 @@ router.get('/:outputId/download', requireWorkspace, async (req, res) => {
         const chk = await fetchDeckNow(meta.manus_task_id).catch(() => null);
         if (chk && chk.status === 'ready' && chk.buf) {
           await store.updateOutput(o.id, {
-            title: 'Briefing Deck', file_name: chk.name,
+            title: titleText(req.workspace.language, 'Briefing Deck', 'عرض تقديمي'), file_name: chk.name,
             file_data: chk.buf, content: JSON.stringify({ ...meta, status: 'done' }),
           });
           res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');

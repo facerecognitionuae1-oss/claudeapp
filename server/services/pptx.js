@@ -13,10 +13,12 @@ const FONTS = ['Calibri', 'Arial', 'Georgia', 'Verdana', 'Trebuchet MS', 'Times 
 const hx = (v, d) => { const c = String(v || '').replace('#', '').trim(); return HEX.test(c) ? c.toUpperCase() : d; };
 const clamp = (n, a, b) => Math.max(a, Math.min(b, Number(n) || 0));
 
-function normTheme(t) {
+function normTheme(t, rtl = false) {
   t = t || {};
   const dark = t.dark !== false;
-  const font = FONTS.includes(t.font) ? t.font : 'Calibri';
+  const fallbackFont = rtl ? 'Arial' : 'Calibri';
+  const font = FONTS.includes(t.font) ? t.font : fallbackFont;
+  const headingFallback = rtl ? 'Arial' : font;
   return {
     name: String(t.name || ''),
     bg: hx(t.bg, dark ? '1A2238' : 'FAF8F4'),
@@ -26,7 +28,7 @@ function normTheme(t) {
     text: hx(t.text, dark ? 'F5F5F0' : '20222A'),
     muted: hx(t.muted, dark ? '9AA5B8' : '77716A'),
     font,
-    headingFont: FONTS.includes(t.heading_font) ? t.heading_font : font,
+    headingFont: FONTS.includes(t.heading_font) ? t.heading_font : headingFallback,
     style: ['geometric', 'circles', 'dots', 'bars', 'waves', 'minimal'].includes(t.style) ? t.style : 'circles',
     dark,
   };
@@ -117,7 +119,7 @@ async function buildDeck(spec, fileBase, rtl, images = {}) {
   pptx.layout = 'LAYOUT_16x9';
   pptx.author = 'UAEICP Employee Intelligence Workspace';
   if (rtl) pptx.rtlMode = true;
-  const th = normTheme(spec.theme);
+  const th = normTheme(spec.theme, rtl);
   const align = rtl ? 'right' : 'left';
   const F = th.font, HF = th.headingFont;
   let page = 1;
@@ -144,7 +146,7 @@ async function buildDeck(spec, fileBase, rtl, images = {}) {
   s.addShape('rect', { x: rtl ? W - 2.3 : tx + 0.05, y: 1.35, w: 1.6, h: 0.1, fill: { color: th.accent } });
   s.addText(spec.title || 'Briefing', { x: tx, y: 1.6, w: ttw - 1.1, h: 1.7, fontSize: TD.title_size ? clamp(TD.title_size, 20, 48) : (cover ? 32 : 36), bold: true, color: resolve(TD.title_color, th, th.text), align, valign: 'top', fontFace: HF });
   s.addText(spec.subtitle || '', { x: tx, y: 3.45, w: ttw - 1.2, h: 0.9, fontSize: 14, color: resolve(TD.text_color, th, th.muted), align, fontFace: F });
-  s.addText('UAEICP • Internal — requires human verification', { x: tx, y: H - 0.55, w: ttw - 1.2, h: 0.35, fontSize: 10, color: th.muted, align, fontFace: F });
+  s.addText(rtl ? 'مساحة عمل UAEICP الداخلية - يتطلب مراجعة بشرية' : 'UAEICP • Internal — requires human verification', { x: tx, y: H - 0.55, w: ttw - 1.2, h: 0.35, fontSize: 10, color: th.muted, align, fontFace: F });
 
   let sectionNo = 0;
   let slideIdx = -1;
@@ -254,9 +256,9 @@ async function buildDeck(spec, fileBase, rtl, images = {}) {
   const end = pptx.addSlide();
   end.background = { color: th.bg };
   decor(end, th, 99, true);
-  end.addText(rtl ? 'شكراً' : 'Thank you', { x: 0.6, y: 2.0, w: W - 1.2, h: 1.1, fontSize: 40, bold: true, color: th.text, align: 'center', fontFace: HF });
+  end.addText(rtl ? 'شكرا' : 'Thank you', { x: 0.6, y: 2.0, w: W - 1.2, h: 1.1, fontSize: 40, bold: true, color: th.text, align: 'center', fontFace: HF });
   end.addShape('rect', { x: W / 2 - 0.8, y: 3.2, w: 1.6, h: 0.08, fill: { color: th.accent } });
-  end.addText('UAEICP Employee Intelligence Workspace — AI output requires human verification', {
+  end.addText(rtl ? 'مساحة عمل الذكاء المؤسسي لموظفي UAEICP - مخرجات الذكاء الاصطناعي تتطلب مراجعة بشرية' : 'UAEICP Employee Intelligence Workspace — AI output requires human verification', {
     x: 0.6, y: 3.5, w: W - 1.2, h: 0.5, fontSize: 11, color: th.muted, align: 'center', fontFace: F,
   });
 

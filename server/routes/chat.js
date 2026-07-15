@@ -38,7 +38,7 @@ router.post('/', requireWorkspace, async (req, res) => {
     const { webSearch, formatSearch, searchConfigured } = require('../services/search');
     if (searchConfigured()) {
       const found = await webSearch(question.trim());
-      webBlock = formatSearch(found, question.trim());
+      webBlock = formatSearch(found, question.trim(), language);
     }
   }
   const system = chatSystem(mode, language, files.length > 0);

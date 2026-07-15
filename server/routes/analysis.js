@@ -33,7 +33,7 @@ router.post('/', requireWorkspace, async (req, res) => {
     if (searchConfigured()) {
       const q = (ws.brief || '').trim().slice(0, 300) || ws.title;
       const found = await webSearch(q);
-      webBlock = formatSearch(found, q);
+      webBlock = formatSearch(found, q, language);
     }
   }
   const system = analysisSystem(mode, language, files.length > 0);

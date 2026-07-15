@@ -234,7 +234,7 @@ Return ONLY valid JSON (no markdown fences); every human-visible string in the r
     "name": "short theme name",
     "bg": "0F1B2D", "panel": "16283F", "accent": "FF6B4A", "accent2": "3AA6B9",
     "text": "F5F5F0", "muted": "8FA3B0",
-    "font": "Calibri | Arial | Georgia | Verdana | Trebuchet MS | Times New Roman",
+    "font": "Calibri | Arial | Tahoma | Georgia | Verdana | Trebuchet MS | Times New Roman",
     "style": "geometric | circles | dots | bars | waves | minimal",
     "heading_font": "optional display font for titles (same whitelist as font)",
     "image_style": "shared art direction for all images, e.g. 'sleek futuristic 3D render, deep blue and magenta palette, soft studio glow'",
