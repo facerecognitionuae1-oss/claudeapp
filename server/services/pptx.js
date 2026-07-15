@@ -148,6 +148,39 @@ const bulletOpts = (th, align, size, color, rtl = false) => b => ({
 });
 
 const imgData = buf => 'image/png;base64,' + buf.toString('base64');
+const ensureXmlAttr = (tag, attr, value) => {
+  const re = new RegExp(`\\s${attr}="[^"]*"`);
+  return re.test(tag) ? tag.replace(re, ` ${attr}="${value}"`) : tag.replace(/\/?>$/, ` ${attr}="${value}"$&`);
+};
+const cleanArabicXmlText = xml => String(xml || '').replace(/\u0640/g, '').replace(TASHKEEL_RE, '');
+const markArabicParagraph = para => {
+  if (!ARABIC_RE.test(para)) return para;
+  let out = para;
+  if (/<a:pPr\b/.test(out)) {
+    out = out.replace(/<a:pPr\b[^>]*>/, m => ensureXmlAttr(ensureXmlAttr(m, 'rtl', '1'), 'algn', 'r'));
+  } else {
+    out = out.replace('<a:p>', '<a:p><a:pPr rtl="1" algn="r"/>');
+  }
+  out = out.replace(/<a:rPr\b[^>]*>/g, m => ensureXmlAttr(m, 'lang', 'ar-SA'));
+  out = out.replace(/<(a:latin|a:ea|a:cs)\b[^>]*\/>/g, '<$1 typeface="Tahoma"/>');
+  return out;
+};
+
+async function sanitizePptxArabicBuffer(buf, rtl = false) {
+  if (!rtl || !buf || !buf.length) return buf;
+  const JSZip = require('jszip');
+  const zip = await JSZip.loadAsync(buf);
+  const names = Object.keys(zip.files).filter(n => /^ppt\/(?:slides|notesSlides)\/[^/]+\.xml$/.test(n));
+  await Promise.all(names.map(async name => {
+    const file = zip.file(name);
+    if (!file) return;
+    let xml = cleanArabicXmlText(await file.async('string'));
+    xml = xml.replace(/<a:p>[\s\S]*?<\/a:p>/g, markArabicParagraph);
+    zip.file(name, xml);
+  }));
+  return zip.generateAsync({ type: 'nodebuffer' });
+}
+
 const textBox = (rtl, extra = {}) => ({
   lang: rtl ? 'ar-SA' : 'en-US',
   rtlMode: !!rtl,
@@ -320,4 +353,4 @@ async function buildDeck(spec, fileBase, rtl, images = {}) {
   return fileName;
 }
 
-module.exports = { buildDeck };
+module.exports = { buildDeck, sanitizePptxArabicBuffer };

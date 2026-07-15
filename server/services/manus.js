@@ -2,6 +2,7 @@
 // downloads the finished .pptx and stores it on the output record.
 const config = require('../config');
 const store = require('../storage');
+const { sanitizePptxArabicBuffer } = require('./pptx');
 
 const API = 'https://api.manus.ai';
 
@@ -104,7 +105,9 @@ function pollDeck(taskId, outputId, wsId) {
         if (files.length) {
           const r = await fetch(files[0].url);
           if (r.ok) {
-            const buf = Buffer.from(await r.arrayBuffer());
+            let buf = Buffer.from(await r.arrayBuffer());
+            const ws = await store.getWorkspace(wsId).catch(() => null);
+            buf = await sanitizePptxArabicBuffer(buf, ws?.language === 'ar');
             await store.updateOutput(outputId, {
               title: 'Briefing Deck (Manus)', file_name: files[0].name.endsWith('.pptx') ? files[0].name : 'deck.pptx',
               file_data: buf, content: JSON.stringify({ manus_task_id: taskId, status: 'done' }),

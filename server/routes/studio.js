@@ -6,7 +6,7 @@ const store = require('../storage');
 const { requireAuth, requireWorkspace } = require('../middleware/auth');
 const ai = require('../services/ai');
 const { baseContext, studioSystem, pptxSystem, infographicSystem, contentPlanSystem, deckArtSystem, arabicSlideQualityRule, STUDIO_TYPES, detectLang } = require('../services/prompts');
-const { buildDeck } = require('../services/pptx');
+const { buildDeck, sanitizePptxArabicBuffer } = require('../services/pptx');
 
 const REF_PDF = path.join(__dirname, '..', 'reference', 'deck-reference.pdf');
 const REF_PAGES_DIR = path.join(__dirname, '..', 'reference', 'pages');
@@ -85,9 +85,9 @@ router.post('/', requireWorkspace, async (req, res) => {
   const convo = messages.slice(-40).map(m => `${m.role === 'user' ? 'EMPLOYEE' : 'ASSISTANT'}: ${m.content}`).join('\n\n');
   const lastUser = [...messages].reverse().find(m => m.role === 'user');
   const language = req.body?.language || detectLang(instructions) || (lastUser ? detectLang(lastUser.content) : null) || ws.language;
-  // Live web search runs automatically whenever a search key is configured.
+  // Studio outputs should silently use current context when search is configured.
   let webBlock = '';
-  if (req.body?.web === true) {
+  if (req.body?.web === true || type === 'pptx') {
     const { webSearch, formatSearch, searchConfigured } = require('../services/search');
     if (searchConfigured()) {
       const q = (instructions || ws.brief || ws.title || '').trim().slice(0, 300);
@@ -147,16 +147,15 @@ router.post('/', requireWorkspace, async (req, res) => {
         if (engine === 'skywork') {
           try {
             const skLang = language === 'ar' ? 'Arabic' : 'English';
-            const rtlRule = arabicSlideQualityRule(language);
-            const visualMandate = `Create a premium, image-rich 16:9 PowerPoint deck in ${skLang}. Use high-end generated visuals or designed illustrations on every substantive slide: hero devices, government service interfaces, abstract security/data networks, UAE identity motifs, layered icon cards, and cinematic backgrounds. Balance information and visuals: not sparse, not cramped. For Arabic, use clean RTL Arabic typography with no harakat/tashkeel, no broken mixed-direction phrases, and no overlapping text.`;
+            const visualMandate = `Create a premium, image-rich 16:9 PowerPoint deck in ${skLang}. Use high-end generated visuals or designed illustrations on every substantive slide: hero devices, government service interfaces, abstract security/data networks, UAE identity motifs, layered icon cards, and cinematic backgrounds. Balance information and visuals: not sparse, not cramped. For Arabic, use simple clean Modern Standard Arabic, no harakat/tashkeel, no decorative Arabic marks, no broken mixed-direction phrases, and no overlapping text.`;
             const skQuery = `${(instructions || ws.brief || ws.title || 'Briefing deck').trim().slice(0, 1200)} — ${visualMandate}${focused ? ' Cover only the points requested above.' : ''}`;
             const skReference = 'VISUAL QUALITY TARGET:\nMatch the polished image-rich style of a premium Skywork presentation: large generated hero visual, dark refined panels, gold/accent icon cards, clean readable typography, and purposeful slide composition.\n\nBACKGROUND RESEARCH (use freely for facts and data — structure and design are entirely up to you):\n' + plan.text.slice(0, 28000)
               + '\n\nSOURCE MATERIAL:\n' + context.slice(0, 28000);
             let lastProgressWrite = 0;
             const { buf } = await generatePpt({
-              query: skQuery + (rtlRule ? '\n\n' + rtlRule : ''),
+              query: skQuery,
               language: skLang,
-              reference: skReference + (rtlRule ? '\n\nFINAL ARABIC TEXT QA:\n' + rtlRule : ''),
+              reference: skReference + (rtlRule ? '\n\nARABIC FINAL TEXT QA: no harakat/tashkeel; clean RTL Arabic; short readable phrases; keep UAEICP/ICP as standalone acronyms only.' : ''),
               onProgress: ({ progress, stage }) => {
                 const now = Date.now();
                 if (now - lastProgressWrite < 15000) return; // throttle DB writes
@@ -166,11 +165,12 @@ router.post('/', requireWorkspace, async (req, res) => {
                 }).catch(() => {});
               },
             });
+            const cleanBuf = await sanitizePptxArabicBuffer(buf, language === 'ar');
             const fileName = `${deckFileBase(requestedDeckTitle, ws)}.pptx`;
-            try { require('fs').writeFileSync(path.join(config.generatedDir, fileName), buf); } catch {}
+            try { require('fs').writeFileSync(path.join(config.generatedDir, fileName), cleanBuf); } catch {}
             await store.updateOutput(output.id, {
               title: requestedDeckTitle, file_name: fileName,
-              content: JSON.stringify({ engine: 'skywork', status: 'done' }), file_data: buf,
+              content: JSON.stringify({ engine: 'skywork', status: 'done' }), file_data: cleanBuf,
             });
             console.log('[pipeline] Skywork deck ready:', output.id);
             return;
@@ -370,11 +370,26 @@ router.get('/:outputId/download', requireWorkspace, async (req, res) => {
   if (o.format === 'pptx') {
     const data = await store.getOutputFile(o.id);
     if (data && data.length) {
+      const cleanData = await sanitizePptxArabicBuffer(data, req.workspace.language === 'ar');
+      if (cleanData !== data && req.workspace.language === 'ar') {
+        store.updateOutput(o.id, { file_data: cleanData }).catch(() => {});
+      }
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
       res.setHeader('Content-Disposition', attachmentHeader(o.file_name || `${safeFileBase(o.title || 'deck')}.pptx`, 'deck.pptx'));
-      return res.send(data);
+      return res.send(cleanData);
     }
-    if (o.file_name) return res.download(path.join(config.generatedDir, o.file_name), o.file_name);
+    if (o.file_name) {
+      const diskPath = path.join(config.generatedDir, o.file_name);
+      if (req.workspace.language === 'ar') {
+        try {
+          const cleanData = await sanitizePptxArabicBuffer(require('fs').readFileSync(diskPath), true);
+          res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+          res.setHeader('Content-Disposition', attachmentHeader(o.file_name, 'deck.pptx'));
+          return res.send(cleanData);
+        } catch {}
+      }
+      return res.download(diskPath, o.file_name);
+    }
     try {
       const meta = JSON.parse(o.content || '{}');
       if (meta.manus_task_id) {
@@ -384,13 +399,14 @@ router.get('/:outputId/download', requireWorkspace, async (req, res) => {
         if (chk && chk.status === 'ready' && chk.buf) {
           const recoveredTitle = o.title && !/generating|قيد الإنشاء|timed out/i.test(o.title) ? o.title : deckTitleFromRequest(req.workspace.language, '', req.workspace, null);
           const recoveredName = `${safeFileBase(recoveredTitle)}.pptx`;
+          const cleanBuf = await sanitizePptxArabicBuffer(chk.buf, req.workspace.language === 'ar');
           await store.updateOutput(o.id, {
             title: recoveredTitle, file_name: recoveredName,
-            file_data: chk.buf, content: JSON.stringify({ ...meta, status: 'done' }),
+            file_data: cleanBuf, content: JSON.stringify({ ...meta, status: 'done' }),
           });
           res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
           res.setHeader('Content-Disposition', attachmentHeader(recoveredName, 'deck.pptx'));
-          return res.send(chk.buf);
+          return res.send(cleanBuf);
         }
         if (chk && (chk.status === 'running' || chk.status === 'waiting'))
           return res.status(409).json({ error: 'Still generating — try again in a few minutes.' });
