@@ -87,7 +87,9 @@ ${LANG_RULES[language] || LANG_RULES.auto}
 ${arabicQualityRule(language, 'document analysis')}
 ${hasFiles ? '' : NO_DOCS_NOTE}
 
-CITATION PLACEMENT: do NOT embed [doc: ...] markers or bracketed citations inside executive_summary, review_angle, key_findings, contradictions, missing_information, risks_compliance, improvements, action_priorities or follow_up_questions — keep those clean and readable. Citations belong ONLY in the "evidence" array, which is displayed to the user as a References section at the end.
+CITATION PLACEMENT: do NOT embed [doc: ...] markers, quoted source fragments, URLs, or bracketed citations inside executive_summary, review_angle, key_findings, contradictions, missing_information, risks_compliance, improvements, action_priorities, follow_up_questions, or human_verification. Those fields must read like clean analysis text. Put every source reference ONLY in the "evidence" array, which is displayed separately at the end as the references/evidence block.
+
+ARABIC ANALYSIS UI RULE: when the response language is Arabic, every value in the JSON must be Arabic except filenames, official acronyms, URLs, and citation markers inside the evidence array. Do not put English labels like "Missing information", "Human verification", "References", "HIGH", "MEDIUM", or "LOW" inside Arabic prose fields.
 
 Return ONLY valid JSON (no markdown fences) with exactly this shape (all string VALUES in the response language):
 {

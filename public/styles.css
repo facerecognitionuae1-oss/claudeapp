@@ -232,6 +232,10 @@ label.f { display: block; font-size: 13px; font-weight: 700; color: var(--black)
 }
 .a-section h4::before { content: ''; width: 8px; height: 8px; border-radius: 2px; background: var(--gold); flex: none; }
 .a-section ul { padding-inline-start: 20px; display: grid; gap: 7px; font-size: 14px; }
+.a-section[dir="rtl"], .a-section[dir="rtl"] .exec, .a-section[dir="rtl"] .grow, .a-section[dir="rtl"] li { text-align: right; }
+.a-section[dir="rtl"] ul { padding-inline-start: 0; padding-inline-end: 22px; }
+.a-section[dir="rtl"] .item { flex-direction: row-reverse; }
+.a-section[dir="rtl"] h4 { flex-direction: row-reverse; justify-content: flex-end; }
 .a-section .item { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; border-bottom: 1px dashed var(--line); font-size: 14px; flex-wrap: wrap; }
 .a-section .item:last-child { border-bottom: none; }
 .a-section .item .grow { flex: 1; min-width: 200px; }

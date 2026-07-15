@@ -492,13 +492,16 @@
       ${busy ? `<span class="spinner"></span> ${t('analyzing')}` : `⚡ ${t('runAnalysis')}`}</button>`;
     if (!a) return `<div class="empty-state card">${t('noAnalysis')}<div style="margin-top:16px">${runBtn}</div></div>`;
     const r = typeof a.result === 'string' ? JSON.parse(a.result) : a.result;
+    const cleanAnalysis = s => String(s || '').replace(/\s*\[doc:[^\]]+\]/gi, '').replace(/\s*\((?:confidence|الثقة):?\s*(?:HIGH|MEDIUM|LOW|عالٍ|متوسط|منخفض)\)/gi, '').trim();
+    const arrText = arr => (arr || []).map(x => typeof x === 'string' ? x : Object.values(x || {}).join(' ')).join(' ');
+    const sectionDir = v => textDir(Array.isArray(v) ? arrText(v) : v);
     const levelLabel = c => {
       const v = String(c || '').toUpperCase();
       if (S.lang !== 'ar') return c || '?';
       return v === 'HIGH' ? 'عالٍ' : v === 'MEDIUM' ? 'متوسط' : v === 'LOW' ? 'منخفض' : (c || '?');
     };
     const conf = c => `<span class="badge ${String(c || '').toLowerCase()}">${esc(levelLabel(c))}</span>`;
-    const list = arr => (arr && arr.length) ? `<ul>${arr.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : `<div style="color:var(--muted);font-size:13px">—</div>`;
+    const list = arr => (arr && arr.length) ? `<ul dir="${sectionDir(arr)}">${arr.map(x => `<li>${esc(cleanAnalysis(x))}</li>`).join('')}</ul>` : `<div style="color:var(--muted);font-size:13px">—</div>`;
     return `
       <div class="page-head" style="margin-bottom:14px">
         <span class="badge mode">${esc(a.provider)}${a.model && a.model !== 'demo' ? ' · ' + esc(a.model) : ''}</span>
@@ -507,26 +510,26 @@
       </div>
       <div class="disclaimer-bar">⚠ ${t('disclaimer')}</div>
       ${a.provider === 'demo' ? `<div class="disclaimer-bar demo-bar">ℹ ${t('demoNotice')}</div>` : ''}
-      <div class="card a-section"><h4>${t('execSummary')}</h4><div class="exec">${esc(r.executive_summary || '')}</div></div>
-      <div class="card a-section"><h4>${t('keyFindings')}</h4>
-        ${(r.key_findings || []).map(k => `<div class="item"><div class="grow">${k.speculative ? `<span class="badge spec">${t('speculative')}</span> ` : ''}${esc(k.finding)}</div>${conf(k.confidence)}</div>`).join('') || '—'}
+      <div class="card a-section" dir="${sectionDir(r.executive_summary)}"><h4>${t('execSummary')}</h4><div class="exec">${esc(cleanAnalysis(r.executive_summary))}</div></div>
+      <div class="card a-section" dir="${sectionDir(r.key_findings)}"><h4>${t('keyFindings')}</h4>
+        ${(r.key_findings || []).map(k => `<div class="item"><div class="grow">${k.speculative ? `<span class="badge spec">${t('speculative')}</span> ` : ''}${esc(cleanAnalysis(k.finding))}</div>${conf(k.confidence)}</div>`).join('') || '—'}
       </div>
-      <div class="card a-section"><h4>${t('missingInfo')}</h4>${list(r.missing_information)}</div>
-      <div class="card a-section"><h4>${t('risks')}</h4>
-        ${(r.risks_compliance || []).map(x => `<div class="item"><div class="grow"><strong>${esc(x.risk)}</strong>${x.note ? `<div style="font-size:13px;color:var(--muted)">${esc(x.note)}</div>` : ''}</div><span class="badge ${String(x.severity || '').toLowerCase()}">${esc(levelLabel(x.severity))}</span></div>`).join('') || '—'}
+      <div class="card a-section" dir="${sectionDir(r.missing_information)}"><h4>${t('missingInfo')}</h4>${list(r.missing_information)}</div>
+      <div class="card a-section" dir="${sectionDir(r.risks_compliance)}"><h4>${t('risks')}</h4>
+        ${(r.risks_compliance || []).map(x => `<div class="item"><div class="grow"><strong>${esc(cleanAnalysis(x.risk))}</strong>${x.note ? `<div style="font-size:13px;color:var(--muted)">${esc(cleanAnalysis(x.note))}</div>` : ''}</div><span class="badge ${String(x.severity || '').toLowerCase()}">${esc(levelLabel(x.severity))}</span></div>`).join('') || '—'}
       </div>
-      <div class="card a-section"><h4>${t('actions')}</h4>
-        ${(r.action_priorities || []).sort((x, y) => x.priority - y.priority).map(p => `<div class="item"><span class="badge gold">${p.priority}</span><div class="grow">${esc(p.action)}</div></div>`).join('') || '—'}
+      <div class="card a-section" dir="${sectionDir(r.action_priorities)}"><h4>${t('actions')}</h4>
+        ${(r.action_priorities || []).sort((x, y) => x.priority - y.priority).map(p => `<div class="item"><span class="badge gold">${p.priority}</span><div class="grow">${esc(cleanAnalysis(p.action))}</div></div>`).join('') || '—'}
       </div>
-      <div class="card a-section"><h4>${t('followUps')}</h4>
-        ${(r.follow_up_questions || []).map(q => `<div class="item"><div class="grow">${esc(q)}</div><button class="btn btn-ghost btn-sm" onclick="A.askFromAnalysis(${attrJson(q)})">→ ${t('chat')}</button></div>`).join('') || '—'}
+      <div class="card a-section" dir="${sectionDir(r.follow_up_questions)}"><h4>${t('followUps')}</h4>
+        ${(r.follow_up_questions || []).map(q => `<div class="item"><div class="grow">${esc(cleanAnalysis(q))}</div><button class="btn btn-ghost btn-sm" onclick="A.askFromAnalysis(${attrJson(q)})">→ ${t('chat')}</button></div>`).join('') || '—'}
       </div>
       <details class="a-more card">
         <summary>${t('moreDetails')}</summary>
-        <div class="a-section"><h4>${t('reviewAngle')}</h4><div class="exec">${esc(r.review_angle || '')}</div></div>
-        <div class="a-section"><h4>${t('contradictions')}</h4>${list(r.contradictions)}</div>
-        <div class="a-section"><h4>${t('improvements')}</h4>${list(r.improvements)}</div>
-        <div class="a-section"><h4>${t('humanVerify')}</h4>${list(r.human_verification)}</div>
+        <div class="a-section" dir="${sectionDir(r.review_angle)}"><h4>${t('reviewAngle')}</h4><div class="exec">${esc(cleanAnalysis(r.review_angle))}</div></div>
+        <div class="a-section" dir="${sectionDir(r.contradictions)}"><h4>${t('contradictions')}</h4>${list(r.contradictions)}</div>
+        <div class="a-section" dir="${sectionDir(r.improvements)}"><h4>${t('improvements')}</h4>${list(r.improvements)}</div>
+        <div class="a-section" dir="${sectionDir(r.human_verification)}"><h4>${t('humanVerify')}</h4>${list(r.human_verification)}</div>
       </details>
       <div class="card a-section"><h4>${t('evidence')}</h4>
         ${(r.evidence || []).map(e => `<div class="item"><div class="grow">${esc(e.point)} <span class="cite">${esc(e.citation || '')}</span></div>${conf(e.confidence)}</div>`).join('') || '—'}
