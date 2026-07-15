@@ -59,6 +59,7 @@ ARABIC RTL SLIDE-COPY QUALITY RULE:
 - Do not let English brand tokens reverse Arabic word order. Correct example: "تطبيق UAEICP الذكي"; incorrect: "الذكي UAEICP تطبيق".
 - Keep acronyms such as UAEICP, ICP, AI, API as standalone tokens inside Arabic sentences only where useful.
 - Do not use harakat/tashkeel/Arabic diacritics in slide text unless the employee explicitly asks for them.
+- For Arabic slides, balance substance and readability: include enough useful information, but split it into clear bullets, callouts, captions, or speaker notes instead of crowding one text box.
 - Avoid splitting one Arabic phrase across separate text boxes unless the phrase still reads correctly in visual order.
 - Proofread all final visible text before output: fix typos, repeated fragments, broken grammar, and adjective agreement such as "خدمات ذكية" / "الخدمات الذكية".
 - Page numbers must be consistent and not visually reversed; use "٣ / ٨" or "3 / 8", not "٨ / ٣" when the intended meaning is slide 3 of 8.
@@ -242,7 +243,7 @@ DESIGN BRIEF — MOST IMPORTANT PART:
 - Readability first: strong contrast between "text" and "bg"/"panel". All colors are 6-digit hex WITHOUT '#'.
 
 DESIGN PRINCIPLES (non-negotiable):
-- Generous whitespace; ONE idea per slide; max 5 bullets per slide, each ≤ 10 words.
+- Generous whitespace; ONE idea per slide; max 5 bullets per slide, each ≤ 10 words. For Arabic, allow up to 5 clear bullets when needed, but keep line breaks and text boxes readable.
 - 60-30-10 color balance: dominant background, secondary panel, accent used sparingly for emphasis only.
 - Use "design.blocks" boldly for editorial color-blocking on at least a third of the slides — split panels, full-height bands, oversized off-canvas circles — vary the composition on every slide.
 - Big type for big statements (title_size 30-40 on hero moments); muted small labels elsewhere.
@@ -277,7 +278,7 @@ Return ONLY valid JSON (no markdown fences); every human-visible string in the r
 Rules:
 - "dark": true when bg is dark (use light text), false when bg is light (use dark text).
 - 9-14 slides. MIX layouts aggressively — never the same layout twice in a row. Open with an agenda, use "section" as chapter breaks, "stats"/"big_number" only for real figures from the material (skip if none), "timeline" for dated events, "quote" for one key clause.
-- Bullets ≤ 12 words, but 4-6 per slide PLUS stats/blocks/imagery — every slide must feel fully produced and rich, never sparse or near-empty.
+- Bullets ≤ 12 words, but 4-6 per slide PLUS stats/blocks/imagery — every slide must feel fully produced and rich, never sparse or near-empty. For Arabic, preserve meaningful detail while distributing text across readable bullets, callouts, notes, and visuals.
 - No citations on content slides; the LAST content slide must be {"layout": "bullets", "title": "References" (or "المراجع")} listing the source documents/conversation.
 - FULL DESIGN CONTROL: any slide (and the deck root, for the cover) may carry a "design" object to compose the canvas yourself:
   {"design": {"bg": "hex or accent/accent2/panel", "text_color": "...", "title_color": "...", "title_size": 14-44, "no_band": true,

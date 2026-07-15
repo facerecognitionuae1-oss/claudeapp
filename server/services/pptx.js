@@ -16,9 +16,10 @@ const clamp = (n, a, b) => Math.max(a, Math.min(b, Number(n) || 0));
 function normTheme(t, rtl = false) {
   t = t || {};
   const dark = t.dark !== false;
-  const fallbackFont = rtl ? 'Arial' : 'Calibri';
-  const font = FONTS.includes(t.font) ? t.font : fallbackFont;
-  const headingFallback = rtl ? 'Arial' : font;
+  const fallbackFont = rtl ? 'Tahoma' : 'Calibri';
+  const font = rtl ? (FONTS.includes(t.font) && !['Georgia', 'Garamond', 'Book Antiqua', 'Impact'].includes(t.font) ? t.font : fallbackFont)
+    : (FONTS.includes(t.font) ? t.font : fallbackFont);
+  const headingFallback = rtl ? 'Tahoma' : font;
   return {
     name: String(t.name || ''),
     bg: hx(t.bg, dark ? '1A2238' : 'FAF8F4'),
@@ -94,24 +95,30 @@ function header(sl, th, slide, page, rtl) {
   const align = rtl ? 'right' : 'left';
   const tColor = resolve(D.title_color, th, th.text);
   const custom = (D.blocks && D.blocks.length) || D.image_full; // AI composed the canvas — keep chrome light
-  const tSize = D.title_size ? clamp(D.title_size, 14, 44) : (th.style === 'minimal' || custom ? 24 : 21);
+  const tSize = D.title_size ? clamp(D.title_size, rtl ? 13 : 14, rtl ? 32 : 44) : (rtl ? (th.style === 'minimal' || custom ? 20 : 18) : (th.style === 'minimal' || custom ? 24 : 21));
   if (th.style === 'minimal' || custom || D.no_band) {
-    sl.addText(slide.title || '', { x: 0.6, y: 0.3, w: W - 1.2, h: 0.75, fontSize: tSize, bold: true, color: tColor, align, fontFace: th.headingFont });
-    sl.addShape('rect', { x: rtl ? W - 2.1 : 0.62, y: 1.06, w: 1.5, h: 0.05, fill: { color: resolve(D.rule_color, th, th.accent) } });
+    sl.addText(slide.title || '', textFit(rtl, { x: 0.6, y: 0.25, w: W - 1.2, h: rtl ? 1.0 : 0.75, fontSize: tSize, bold: true, color: tColor, align, fontFace: th.headingFont }));
+    sl.addShape('rect', { x: rtl ? W - 2.1 : 0.62, y: rtl ? 1.2 : 1.06, w: 1.5, h: 0.05, fill: { color: resolve(D.rule_color, th, th.accent) } });
   } else {
     sl.addShape('rect', { x: 0, y: 0, w: W, h: 0.92, fill: { color: th.panel } });
     sl.addShape('rect', { x: 0, y: 0.92, w: W, h: 0.05, fill: { color: th.accent } });
     sl.addShape('rect', { x: rtl ? W - 0.75 : 0.4, y: 0.3, w: 0.32, h: 0.32, rotate: 45, fill: { color: th.accent } });
-    sl.addText(slide.title || '', { x: rtl ? 0.5 : 0.95, y: 0.1, w: W - 1.6, h: 0.72, fontSize: tSize, bold: true, color: tColor, align, valign: 'middle', fontFace: th.headingFont });
+    sl.addText(slide.title || '', textFit(rtl, { x: rtl ? 0.5 : 0.95, y: 0.08, w: W - 1.6, h: rtl ? 0.86 : 0.72, fontSize: tSize, bold: true, color: tColor, align, valign: 'middle', fontFace: th.headingFont }));
   }
   sl.addText(String(page), { x: rtl ? 0.25 : W - 0.65, y: H - 0.42, w: 0.4, h: 0.3, fontSize: 10, bold: true, color: th.accent, align: 'center', fontFace: th.font });
 }
 
 const bulletOpts = (th, align, size, color) => b => ({
-  text: String(b), options: { bullet: { code: '2022', color: th.accent }, color: color || th.text, fontSize: size || 15, breakLine: true, align, paraSpaceAfter: 8, fontFace: th.font },
+  text: String(b), options: { bullet: { code: '2022', color: th.accent }, color: color || th.text, fontSize: size || 15, breakLine: true, align, paraSpaceAfter: 5, fontFace: th.font, fit: 'shrink', margin: 0.05 },
 });
 
 const imgData = buf => 'image/png;base64,' + buf.toString('base64');
+const textFit = (rtl, extra = {}) => ({
+  fit: 'shrink',
+  margin: rtl ? 0.08 : 0.05,
+  breakLine: false,
+  ...extra,
+});
 
 async function buildDeck(spec, fileBase, rtl, images = {}) {
   const PptxGenJS = require('pptxgenjs');
@@ -144,8 +151,8 @@ async function buildDeck(spec, fileBase, rtl, images = {}) {
   const tx = rtl && cover && !TD.image_full ? W - tw + 0.4 : 0.6;
   if (th.name) s.addText(th.name.toUpperCase(), { x: tx + 0.02, y: 0.5, w: ttw - 1.2, h: 0.35, fontSize: 11, bold: true, color: th.accent2, charSpacing: 3, align, fontFace: F });
   s.addShape('rect', { x: rtl ? W - 2.3 : tx + 0.05, y: 1.35, w: 1.6, h: 0.1, fill: { color: th.accent } });
-  s.addText(spec.title || 'Briefing', { x: tx, y: 1.6, w: ttw - 1.1, h: 1.7, fontSize: TD.title_size ? clamp(TD.title_size, 20, 48) : (cover ? 32 : 36), bold: true, color: resolve(TD.title_color, th, th.text), align, valign: 'top', fontFace: HF });
-  s.addText(spec.subtitle || '', { x: tx, y: 3.45, w: ttw - 1.2, h: 0.9, fontSize: 14, color: resolve(TD.text_color, th, th.muted), align, fontFace: F });
+  s.addText(spec.title || 'Briefing', textFit(rtl, { x: tx, y: 1.6, w: ttw - 1.1, h: rtl ? 1.95 : 1.7, fontSize: TD.title_size ? clamp(TD.title_size, 20, rtl ? 38 : 48) : (rtl ? 30 : (cover ? 32 : 36)), bold: true, color: resolve(TD.title_color, th, th.text), align, valign: 'top', fontFace: HF }));
+  s.addText(spec.subtitle || '', textFit(rtl, { x: tx, y: 3.45, w: ttw - 1.2, h: rtl ? 1.05 : 0.9, fontSize: rtl ? 12.5 : 14, color: resolve(TD.text_color, th, th.muted), align, fontFace: F }));
   s.addText(rtl ? 'مساحة عمل UAEICP الداخلية - يتطلب مراجعة بشرية' : 'UAEICP • Internal — requires human verification', { x: tx, y: H - 0.55, w: ttw - 1.2, h: 0.35, fontSize: 10, color: th.muted, align, fontFace: F });
 
   let sectionNo = 0;
@@ -167,7 +174,7 @@ async function buildDeck(spec, fileBase, rtl, images = {}) {
       if (!hb) decor(sl, th, page, true);
       sl.addText(String(++sectionNo).padStart(2, '0'), { x: rtl ? W - 3.4 : 0.55, y: 0.6, w: 2.8, h: 1.8, fontSize: 72, bold: true, color: resolve(D.title_color, th, th.accent), align, fontFace: HF });
       sl.addShape('rect', { x: rtl ? W - 3.3 : 0.62, y: 2.6, w: 1.2, h: 0.08, fill: { color: th.accent2 } });
-      sl.addText(slide.title || '', { x: 0.6, y: 2.85, w: W - 1.2, h: 1.6, fontSize: 30, bold: true, color: bColor, align, fontFace: HF });
+      sl.addText(slide.title || '', textFit(rtl, { x: 0.6, y: 2.85, w: W - 1.2, h: rtl ? 1.85 : 1.6, fontSize: rtl ? 25 : 30, bold: true, color: bColor, align, fontFace: HF }));
       if (slide.notes) sl.addNotes(String(slide.notes));
       continue;
     }
@@ -187,7 +194,7 @@ async function buildDeck(spec, fileBase, rtl, images = {}) {
         const y = top + i2 * 0.52;
         sl.addShape('ellipse', { x: rtl ? W - 1.05 : 0.6, y: y + 0.03, w: 0.36, h: 0.36, fill: { color: i2 % 2 ? th.accent2 : th.accent } });
         sl.addText(String(i2 + 1), { x: rtl ? W - 1.05 : 0.6, y: y + 0.03, w: 0.36, h: 0.36, fontSize: 12, bold: true, color: th.dark ? th.bg : 'FFFFFF', align: 'center', valign: 'middle', fontFace: F });
-        sl.addText(String(b), { x: rtl ? 0.6 : 1.12, y, w: W - 1.9, h: 0.45, fontSize: 14.5, color: bColor, align, valign: 'middle', fontFace: F });
+        sl.addText(String(b), textFit(rtl, { x: rtl ? 0.6 : 1.12, y, w: W - 1.9, h: rtl ? 0.56 : 0.45, fontSize: rtl ? 12.5 : 14.5, color: bColor, align, valign: 'middle', fontFace: F }));
       });
     } else if (layout === 'two_column') {
       const cols = [
@@ -197,8 +204,8 @@ async function buildDeck(spec, fileBase, rtl, images = {}) {
       for (const col of cols) {
         sl.addShape('roundRect', { x: col.x, y: top, w: W / 2 - 0.6, h: H - top - 0.55, rectRadius: 0.08, fill: { color: th.panel } });
         sl.addShape('rect', { x: col.x, y: top, w: W / 2 - 0.6, h: 0.09, fill: { color: col.ac } });
-        sl.addText(col.title || '', { x: col.x + 0.2, y: top + 0.18, w: W / 2 - 1.0, h: 0.45, fontSize: 15, bold: true, color: col.ac, align, fontFace: HF });
-        const bl = (col.bullets || []).map(bulletOpts(th, align, 13));
+        sl.addText(col.title || '', textFit(rtl, { x: col.x + 0.2, y: top + 0.15, w: W / 2 - 1.0, h: rtl ? 0.62 : 0.45, fontSize: rtl ? 13 : 15, bold: true, color: col.ac, align, fontFace: HF }));
+        const bl = (col.bullets || []).map(bulletOpts(th, align, rtl ? 10.5 : 13));
         if (bl.length) sl.addText(bl, { x: col.x + 0.2, y: top + 0.7, w: W / 2 - 1.0, h: H - top - 1.35, valign: 'top' });
       }
     } else if (layout === 'stats') {
@@ -209,11 +216,11 @@ async function buildDeck(spec, fileBase, rtl, images = {}) {
         sl.addShape('roundRect', { x, y: top + 0.3, w: cw, h: 2.5, rectRadius: 0.1, fill: { color: th.panel } });
         sl.addShape('rect', { x: x + cw / 2 - 0.35, y: top + 0.3, w: 0.7, h: 0.07, fill: { color: i2 % 2 ? th.accent2 : th.accent } });
         sl.addText(String(st.value ?? ''), { x, y: top + 0.55, w: cw, h: 1.1, fontSize: 34, bold: true, color: i2 % 2 ? th.accent2 : th.accent, align: 'center', fontFace: HF });
-        sl.addText(String(st.label ?? ''), { x: x + 0.12, y: top + 1.7, w: cw - 0.24, h: 0.95, fontSize: 12.5, color: th.text, align: 'center', valign: 'top', fontFace: F });
+        sl.addText(String(st.label ?? ''), textFit(rtl, { x: x + 0.12, y: top + 1.7, w: cw - 0.24, h: rtl ? 1.08 : 0.95, fontSize: rtl ? 10.8 : 12.5, color: th.text, align: 'center', valign: 'top', fontFace: F }));
       });
     } else if (layout === 'big_number') {
       sl.addText(String(slide.value ?? ''), { x: 0.5, y: top + 0.2, w: W - 1, h: 2.1, fontSize: 84, bold: true, color: resolve(D.title_color, th, th.accent), align: 'center', fontFace: HF });
-      sl.addText(String(slide.caption ?? ''), { x: 1.2, y: top + 2.45, w: W - 2.4, h: 1.0, fontSize: 16, color: bColor, align: 'center', valign: 'top', fontFace: F });
+      sl.addText(String(slide.caption ?? ''), textFit(rtl, { x: 1.2, y: top + 2.45, w: W - 2.4, h: rtl ? 1.2 : 1.0, fontSize: rtl ? 13.5 : 16, color: bColor, align: 'center', valign: 'top', fontFace: F }));
     } else if (layout === 'timeline') {
       const steps = (slide.steps || []).slice(0, 5);
       const y = top + 1.5;
@@ -221,30 +228,30 @@ async function buildDeck(spec, fileBase, rtl, images = {}) {
       steps.forEach((st, i2) => {
         const x = 0.8 + (steps.length === 1 ? 0 : i2 * ((W - 1.6) / (steps.length - 1)));
         sl.addShape('ellipse', { x: x - 0.18, y, w: 0.36, h: 0.36, fill: { color: i2 % 2 ? th.accent2 : th.accent } });
-        sl.addText(String(st.label ?? ''), { x: x - 0.9, y: y - 0.6, w: 1.8, h: 0.4, fontSize: 13, bold: true, color: i2 % 2 ? th.accent2 : th.accent, align: 'center', fontFace: HF });
-        sl.addText(String(st.text ?? ''), { x: x - 0.95, y: y + 0.5, w: 1.9, h: 1.5, fontSize: 11, color: bColor, align: 'center', valign: 'top', fontFace: F });
+        sl.addText(String(st.label ?? ''), textFit(rtl, { x: x - 0.9, y: y - 0.6, w: 1.8, h: rtl ? 0.48 : 0.4, fontSize: rtl ? 11 : 13, bold: true, color: i2 % 2 ? th.accent2 : th.accent, align: 'center', fontFace: HF }));
+        sl.addText(String(st.text ?? ''), textFit(rtl, { x: x - 0.95, y: y + 0.5, w: 1.9, h: 1.5, fontSize: rtl ? 9.8 : 11, color: bColor, align: 'center', valign: 'top', fontFace: F }));
       });
     } else if (layout === 'quote') {
       sl.addShape('roundRect', { x: 0.7, y: top + 0.15, w: W - 1.4, h: 3.0, rectRadius: 0.1, fill: { color: th.panel } });
       sl.addText('“', { x: rtl ? W - 2.2 : 0.85, y: top - 0.25, w: 1.4, h: 1.4, fontSize: 90, bold: true, color: th.accent, align, fontFace: 'Georgia' });
-      sl.addText(String(slide.quote || ''), { x: 1.3, y: top + 0.75, w: W - 2.6, h: 1.7, fontSize: 17, italic: true, color: th.text, align, valign: 'top', fontFace: F });
-      sl.addText(String(slide.source || ''), { x: 1.3, y: top + 2.55, w: W - 2.6, h: 0.4, fontSize: 11, bold: true, color: th.accent2, align, fontFace: F });
+      sl.addText(String(slide.quote || ''), textFit(rtl, { x: 1.3, y: top + 0.75, w: W - 2.6, h: rtl ? 1.95 : 1.7, fontSize: rtl ? 14 : 17, italic: !rtl, color: th.text, align, valign: 'top', fontFace: F }));
+      sl.addText(String(slide.source || ''), textFit(rtl, { x: 1.3, y: top + 2.7, w: W - 2.6, h: 0.42, fontSize: rtl ? 9.5 : 11, bold: true, color: th.accent2, align, fontFace: F }));
     } else if (layout === 'image_side' && !D.image_full) {
       const iw = 3.9;
       const ix = rtl ? 0 : W - iw;
       const iy = (th.style === 'minimal' || hasBlocks || D.no_band) ? 0 : 0.97;
       sl.addImage({ data: imgData(imgBuf), x: ix, y: iy, w: iw, h: H - iy, sizing: { type: 'cover', w: iw, h: H - iy } });
       sl.addShape('rect', { x: rtl ? iw - 0.05 : ix - 0.05, y: iy, w: 0.1, h: H, fill: { color: th.accent } });
-      const bullets = (slide.bullets || []).map(bulletOpts(th, align, 14, bColor));
+      const bullets = (slide.bullets || []).map(bulletOpts(th, align, rtl ? 11 : 14, bColor));
       if (bullets.length) sl.addText(bullets, { x: rtl ? iw + 0.4 : 0.6, y: top + 0.15, w: W - iw - 1.1, h: H - top - 0.7, valign: 'top' });
     } else { // bullets (with optional side image)
       if (imgBuf && !D.image_full) {
         const iw = 3.4;
         sl.addImage({ data: imgData(imgBuf), x: rtl ? 0.5 : W - iw - 0.5, y: top + 0.15, w: iw, h: H - top - 0.85, sizing: { type: 'cover', w: iw, h: H - top - 0.85 } });
-        const bullets = (slide.bullets || []).map(bulletOpts(th, align, 14, bColor));
+        const bullets = (slide.bullets || []).map(bulletOpts(th, align, rtl ? 11 : 14, bColor));
         if (bullets.length) sl.addText(bullets, { x: rtl ? iw + 1.1 : 0.6, y: top + 0.1, w: W - iw - 1.8, h: H - top - 0.7, valign: 'top' });
       } else {
-        const bullets = (slide.bullets || []).map(bulletOpts(th, align, 15, bColor));
+        const bullets = (slide.bullets || []).map(bulletOpts(th, align, rtl ? 11.5 : 15, bColor));
         if (bullets.length) sl.addText(bullets, { x: rtl ? 0.9 : 0.6, y: top + 0.1, w: W - 1.9, h: H - top - 0.7, valign: 'top' });
       }
     }

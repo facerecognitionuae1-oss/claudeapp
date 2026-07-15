@@ -218,7 +218,11 @@ ${context.slice(0, 40000)}`;
             + ' Ultra-detailed, premium editorial quality, cinematic lighting, layered depth, professional composition. No words, letters or logos in the image.';
           const jobs = [];
           if (spec.image) jobs.push(['cover', spec.image]);
-          (spec.slides || []).forEach((sl2, i2) => { if (sl2.image && jobs.length < 6) jobs.push(['s' + i2, sl2.image]); });
+          (spec.slides || []).forEach((sl2, i2) => {
+            if (jobs.length >= 12) return;
+            const prompt = sl2.image || `${sl2.title || 'UAEICP briefing slide'}: premium editorial background, abstract government technology visual, layered depth, cinematic lighting`;
+            jobs.push(['s' + i2, prompt]);
+          });
           if (skDesignOk() && jobs.length) {
             const done = await Promise.all(jobs.map(async ([k, pr]) => {
               try { const { buf } = await generateDesign({ prompt: pr + styleSuffix, aspectRatio: '16:9', resolution: '1K' }); return [k, buf]; }
@@ -226,9 +230,10 @@ ${context.slice(0, 40000)}`;
             }));
             for (const [k, buf] of done) if (buf) images[k] = buf;
           }
-          if (!Object.keys(images).length && cfg.providers.openai.key && jobs.length) {
+          if (cfg.providers.openai.key && jobs.some(([k]) => !images[k])) {
             const { generateImage } = require('../services/images');
-            const done = await Promise.all(jobs.map(async ([k, pr]) => [k, await generateImage(pr + styleSuffix)]));
+            const missing = jobs.filter(([k]) => !images[k]);
+            const done = await Promise.all(missing.map(async ([k, pr]) => [k, await generateImage(pr + styleSuffix)]));
             for (const [k, buf] of done) if (buf) images[k] = buf;
           }
         }
