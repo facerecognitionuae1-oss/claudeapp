@@ -85,16 +85,16 @@ router.post('/', requireWorkspace, async (req, res) => {
   const convo = messages.slice(-40).map(m => `${m.role === 'user' ? 'EMPLOYEE' : 'ASSISTANT'}: ${m.content}`).join('\n\n');
   const lastUser = [...messages].reverse().find(m => m.role === 'user');
   const language = req.body?.language || detectLang(instructions) || (lastUser ? detectLang(lastUser.content) : null) || ws.language;
-  // Studio outputs should silently use current context when search is configured.
-  let webBlock = '';
-  if (req.body?.web === true || type === 'pptx') {
+  const loadWebBlock = async () => {
     const { webSearch, formatSearch, searchConfigured } = require('../services/search');
-    if (searchConfigured()) {
-      const q = (instructions || ws.brief || ws.title || '').trim().slice(0, 300);
-      const found = await webSearch(q);
-      webBlock = formatSearch(found, q, language);
-    }
-  }
+    if (!searchConfigured()) return '';
+    const q = (instructions || ws.brief || ws.title || '').trim().slice(0, 300);
+    const found = await webSearch(q);
+    return formatSearch(found, q, language);
+  };
+  // Keep normal Studio web-enhancement behind the globe. PPT fetches current
+  // web context later in the background so the UI gets an immediate response.
+  const webBlock = (req.body?.web === true && type !== 'pptx') ? await loadWebBlock() : '';
   const kbQuery = [instructions, ws.title, ws.brief, lastUser?.content, files.map(f => f.original_name).join(' ')].filter(Boolean).join('\n').slice(0, 1600);
   const kb = await require('../services/knowledge').retrieve(kbQuery, 8);
   const context = baseContext(ws, files) + kb.block + webBlock
@@ -133,13 +133,20 @@ router.post('/', requireWorkspace, async (req, res) => {
 
     setImmediate(async () => {
       try {
+        let deckContext = context;
+        try {
+          const liveBlock = await loadWebBlock();
+          if (liveBlock) deckContext += liveBlock;
+        } catch (e) {
+          console.warn('[pipeline] web context skipped:', e.message);
+        }
         // Stage 1 (GPT): content architecture. Stage 2 (Claude): art direction.
         const contentProvider = cfg.providers.openai.key ? 'openai' : (cfg.providers.anthropic.key ? 'anthropic' : provider);
         const designProvider = cfg.providers.anthropic.key ? 'anthropic' : contentProvider;
         const plan = await ai.chat({
           provider: contentProvider,
           system: contentPlanSystem(language, focused, hasFiles, 'deck'),
-          user: context.slice(0, 90000) + '\n\nWrite the slide-by-slide content plan now.',
+          user: deckContext.slice(0, 90000) + '\n\nWrite the slide-by-slide content plan now.',
         });
         // Stage 3 — production. Try Skywork first when selected; fall through on failure.
         // Skywork gets the employee's request as-is plus researched facts — full creative
@@ -147,15 +154,18 @@ router.post('/', requireWorkspace, async (req, res) => {
         if (engine === 'skywork') {
           try {
             const skLang = language === 'ar' ? 'Arabic' : 'English';
+            const rtlRule = language === 'ar'
+              ? 'ARABIC FINAL TEXT QA: no harakat/tashkeel; clean RTL Arabic; short readable phrases; keep UAEICP/ICP as standalone acronyms only.'
+              : '';
             const visualMandate = `Create a premium, image-rich 16:9 PowerPoint deck in ${skLang}. Use high-end generated visuals or designed illustrations on every substantive slide: hero devices, government service interfaces, abstract security/data networks, UAE identity motifs, layered icon cards, and cinematic backgrounds. Balance information and visuals: not sparse, not cramped. For Arabic, use simple clean Modern Standard Arabic, no harakat/tashkeel, no decorative Arabic marks, no broken mixed-direction phrases, and no overlapping text.`;
             const skQuery = `${(instructions || ws.brief || ws.title || 'Briefing deck').trim().slice(0, 1200)} — ${visualMandate}${focused ? ' Cover only the points requested above.' : ''}`;
             const skReference = 'VISUAL QUALITY TARGET:\nMatch the polished image-rich style of a premium Skywork presentation: large generated hero visual, dark refined panels, gold/accent icon cards, clean readable typography, and purposeful slide composition.\n\nBACKGROUND RESEARCH (use freely for facts and data — structure and design are entirely up to you):\n' + plan.text.slice(0, 28000)
-              + '\n\nSOURCE MATERIAL:\n' + context.slice(0, 28000);
+              + '\n\nSOURCE MATERIAL:\n' + deckContext.slice(0, 28000);
             let lastProgressWrite = 0;
             const { buf } = await generatePpt({
               query: skQuery,
               language: skLang,
-              reference: skReference + (rtlRule ? '\n\nARABIC FINAL TEXT QA: no harakat/tashkeel; clean RTL Arabic; short readable phrases; keep UAEICP/ICP as standalone acronyms only.' : ''),
+              reference: skReference + (rtlRule ? '\n\n' + rtlRule : ''),
               onProgress: ({ progress, stage }) => {
                 const now = Date.now();
                 if (now - lastProgressWrite < 15000) return; // throttle DB writes
@@ -187,7 +197,7 @@ router.post('/', requireWorkspace, async (req, res) => {
           system: deckArtSystem(language),
           images: refPages,
           user: (refPages.length ? 'The attached images are slides from a REFERENCE deck. They are a CRAFT BENCHMARK ONLY: match their level of finish, density, layering and typographic care — do NOT copy their topic, text, colors or layouts.\n\n' : '')
-            + 'CONTENT PLAN:\n' + plan.text.slice(0, 25000) + '\n\nSOURCE MATERIAL EXCERPT:\n' + context.slice(0, 25000) + '\n\nWrite the complete art direction now.',
+            + 'CONTENT PLAN:\n' + plan.text.slice(0, 25000) + '\n\nSOURCE MATERIAL EXCERPT:\n' + deckContext.slice(0, 25000) + '\n\nWrite the complete art direction now.',
         });
         const pipelineBrief = 'SLIDE-BY-SLIDE CONTENT PLAN (follow exactly):\n' + plan.text.slice(0, 25000)
           + '\n\nART DIRECTION (follow exactly):\n' + art.text.slice(0, 25000);
@@ -204,7 +214,7 @@ DELIVERABLE: the final editable .pptx file, with speaker notes, ending with a Re
 ${pipelineBrief}
 
 SOURCE MATERIAL (for fact checking only):
-${context.slice(0, 40000)}`;
+${deckContext.slice(0, 40000)}`;
           // Attach the style-reference PDF (craft benchmark, not source material)
           let refIds = [];
           try {
@@ -230,7 +240,7 @@ ${context.slice(0, 40000)}`;
         const out = await ai.chat({
           provider: execProvider, model,
           system: pptxSystem(language, focused, hasFiles),
-          user: pipelineBrief + '\n\nSOURCE MATERIAL:\n' + context.slice(0, 30000) + '\n\nBuild the deck JSON now, following the plan and art direction exactly.',
+          user: pipelineBrief + '\n\nSOURCE MATERIAL:\n' + deckContext.slice(0, 30000) + '\n\nBuild the deck JSON now, following the plan and art direction exactly.',
         });
         const spec = ai.parseJson(out.text);
         if (!spec || !Array.isArray(spec.slides)) throw new Error('deck specification unparseable');
