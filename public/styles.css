@@ -257,6 +257,11 @@ label.f { display: block; font-size: 13px; font-weight: 700; color: var(--black)
 [dir="rtl"] .msg.user { align-self: flex-start; }
 .msg.assistant { align-self: flex-start; background: #fff; border: 1px solid var(--line); border-end-start-radius: 4px; }
 [dir="rtl"] .msg.assistant { align-self: flex-end; }
+.msg[dir="rtl"], .msg[dir="rtl"] p, .msg[dir="rtl"] li, .msg[dir="rtl"] td { text-align: right; unicode-bidi: plaintext; }
+.msg[dir="ltr"], .msg[dir="ltr"] p, .msg[dir="ltr"] li, .msg[dir="ltr"] td { text-align: left; unicode-bidi: plaintext; }
+.exec, .item .grow, .output-body, .a-section { unicode-bidi: plaintext; }
+.output-view[dir="rtl"], .output-view[dir="rtl"] p, .output-view[dir="rtl"] li, .output-view[dir="rtl"] td { text-align: right; unicode-bidi: plaintext; }
+.output-view[dir="ltr"], .output-view[dir="ltr"] p, .output-view[dir="ltr"] li, .output-view[dir="ltr"] td { text-align: left; unicode-bidi: plaintext; }
 .msg .who { font-size: 11px; opacity: .65; margin-bottom: 5px; font-weight: 700; }
 .msg :is(h1,h2,h3,h4) { font-size: 14px; margin: 10px 0 4px; color: var(--gold-deep); }
 .msg.user :is(h1,h2,h3,h4) { color: var(--gold-light); }

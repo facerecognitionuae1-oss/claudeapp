@@ -29,6 +29,8 @@
   const app = document.getElementById('app');
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const attrJson = v => JSON.stringify(v).replace(/"/g, '&quot;');
+  const hasArabic = s => /[\u0600-\u06FF]/.test(String(s || ''));
+  const textDir = s => hasArabic(s) ? 'rtl' : 'ltr';
   // pptx outputs are ready only once a file exists; Manus decks generate in the background
   const outInfo = o => {
     if ((o.format !== 'pptx' && o.format !== 'png') || o.file_name) return { ready: true, processing: false };
@@ -230,7 +232,7 @@
               <p>${t('chatWelcomeBody')}</p>
             </div>` : `
             <div class="chat-col">
-              ${b.messages.map(m => `<div class="msg ${m.role}">${m.role === 'assistant' ? md(m.content) : esc(m.content)}</div>`).join('')}
+              ${b.messages.map(m => `<div class="msg ${m.role}" dir="${textDir(m.content)}">${m.role === 'assistant' ? md(m.content) : esc(m.content)}</div>`).join('')}
               ${busy ? `<div class="msg assistant typing-msg"><span class="typing"><span></span><span></span><span></span></span></div>` : ''}
             </div>`}
           </div>
@@ -490,7 +492,12 @@
       ${busy ? `<span class="spinner"></span> ${t('analyzing')}` : `⚡ ${t('runAnalysis')}`}</button>`;
     if (!a) return `<div class="empty-state card">${t('noAnalysis')}<div style="margin-top:16px">${runBtn}</div></div>`;
     const r = typeof a.result === 'string' ? JSON.parse(a.result) : a.result;
-    const conf = c => `<span class="badge ${String(c || '').toLowerCase()}">${esc(c || '?')}</span>`;
+    const levelLabel = c => {
+      const v = String(c || '').toUpperCase();
+      if (S.lang !== 'ar') return c || '?';
+      return v === 'HIGH' ? 'عالٍ' : v === 'MEDIUM' ? 'متوسط' : v === 'LOW' ? 'منخفض' : (c || '?');
+    };
+    const conf = c => `<span class="badge ${String(c || '').toLowerCase()}">${esc(levelLabel(c))}</span>`;
     const list = arr => (arr && arr.length) ? `<ul>${arr.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : `<div style="color:var(--muted);font-size:13px">—</div>`;
     return `
       <div class="page-head" style="margin-bottom:14px">
@@ -506,7 +513,7 @@
       </div>
       <div class="card a-section"><h4>${t('missingInfo')}</h4>${list(r.missing_information)}</div>
       <div class="card a-section"><h4>${t('risks')}</h4>
-        ${(r.risks_compliance || []).map(x => `<div class="item"><div class="grow"><strong>${esc(x.risk)}</strong>${x.note ? `<div style="font-size:13px;color:var(--muted)">${esc(x.note)}</div>` : ''}</div><span class="badge ${String(x.severity || '').toLowerCase()}">${esc(x.severity || '')}</span></div>`).join('') || '—'}
+        ${(r.risks_compliance || []).map(x => `<div class="item"><div class="grow"><strong>${esc(x.risk)}</strong>${x.note ? `<div style="font-size:13px;color:var(--muted)">${esc(x.note)}</div>` : ''}</div><span class="badge ${String(x.severity || '').toLowerCase()}">${esc(levelLabel(x.severity))}</span></div>`).join('') || '—'}
       </div>
       <div class="card a-section"><h4>${t('actions')}</h4>
         ${(r.action_priorities || []).sort((x, y) => x.priority - y.priority).map(p => `<div class="item"><span class="badge gold">${p.priority}</span><div class="grow">${esc(p.action)}</div></div>`).join('') || '—'}
@@ -537,7 +544,7 @@
         <div class="chat-log" id="chat-log">
           ${b.messages.length === 0 ? `<div class="empty-state">${t('askPlaceholder')}</div>` : ''}
           ${b.messages.map(m => `
-            <div class="msg ${m.role}">
+            <div class="msg ${m.role}" dir="${textDir(m.content)}">
               <div class="who">${m.role === 'user' ? esc(S.user.username) : esc(m.provider ? `${m.provider}${m.model && m.model !== 'demo' ? ' · ' + m.model : ''}` : 'AI')}</div>
               ${m.role === 'assistant' ? md(m.content) : esc(m.content)}
             </div>`).join('')}
@@ -950,7 +957,7 @@
       <div class="overlay" onclick="if(event.target===this)A.closeModal()">
         <div class="modal" style="width:760px">
           <h3>${esc(o.title)}</h3>
-          <div class="output-view">${o.format === 'svg' ? `<img style="max-width:100%;height:auto;background:#fff;border-radius:8px" src="data:image/svg+xml;utf8,${encodeURIComponent(o.content)}">` : o.format === 'json' ? `<pre style="white-space:pre-wrap">${esc(o.content)}</pre>` : md(o.content)}</div>
+          <div class="output-view" dir="${textDir(o.content)}">${o.format === 'svg' ? `<img style="max-width:100%;height:auto;background:#fff;border-radius:8px" src="data:image/svg+xml;utf8,${encodeURIComponent(o.content)}">` : o.format === 'json' ? `<pre style="white-space:pre-wrap">${esc(o.content)}</pre>` : md(o.content)}</div>
           <div class="actions">
             <button class="btn btn-ghost" onclick="A.closeModal()">${t('cancel')}</button>
             <button class="btn btn-ghost" onclick="A.copyOutput('${o.id}')">⧉</button>

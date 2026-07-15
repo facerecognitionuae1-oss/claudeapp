@@ -24,6 +24,19 @@ const LANG_RULES = {
 const NO_DOCS_NOTE = `
 NOTE: No documents are uploaded — the employee provided only a written brief. Treat the brief as the task description and produce a useful starting review. You may use general knowledge, but label every such claim [GENERAL KNOWLEDGE] instead of a file citation, keep confidence labels honest, and use the missing-information section to list exactly which documents the employee should obtain before acting.`;
 
+function arabicQualityRule(language, surface = 'output') {
+  if (language !== 'ar') return '';
+  return `
+ARABIC QUALITY RULE (${surface}):
+- Write the entire human-visible response in natural Modern Standard Arabic, right-to-left in meaning and structure.
+- Do not mix random English words into Arabic. Keep English only for official names/acronyms/filenames/URLs/API identifiers/model names that should not be translated, such as UAEICP, ICP, OpenAI, Skywork, Manus, PDF, API.
+- Translate headings, labels, statuses, section names, table headers, disclaimers, and summaries into Arabic. Use "المراجع" not "References", "المعرفة العامة" not "General knowledge", "يتطلب تحققاً بشرياً" not "Human verification required".
+- Use Arabic punctuation and phrasing where appropriate: ، ؛ ؟. Do not write Arabic with English sentence order.
+- Keep Arabic concise, formal, and government-work appropriate. Avoid slang, awkward literal translations, and duplicated phrasing.
+- Do not use harakat/tashkeel/Arabic diacritics unless the employee explicitly asks for them.
+- For bullet lists and numbered lists, every bullet must read correctly as Arabic RTL text.`;
+}
+
 function arabicSlideQualityRule(language) {
   if (language !== 'ar') return '';
   return `
@@ -71,6 +84,7 @@ function analysisSystem(mode, language, hasFiles) {
 
 ${MODE_RULES[mode] || MODE_RULES.guarded}
 ${LANG_RULES[language] || LANG_RULES.auto}
+${arabicQualityRule(language, 'document analysis')}
 ${hasFiles ? '' : NO_DOCS_NOTE}
 
 CITATION PLACEMENT: do NOT embed [doc: ...] markers or bracketed citations inside executive_summary, review_angle, key_findings, contradictions, missing_information, risks_compliance, improvements, action_priorities or follow_up_questions — keep those clean and readable. Citations belong ONLY in the "evidence" array, which is displayed to the user as a References section at the end.
@@ -96,6 +110,7 @@ function chatSystem(mode, language, hasFiles) {
 
 ${MODE_RULES[mode] || MODE_RULES.guarded}
 ${LANG_RULES[language] || LANG_RULES.auto}
+${arabicQualityRule(language, 'assistant chat')}
 ${hasFiles ? '' : NO_DOCS_NOTE}
 
 CRITICAL LANGUAGE RULE: the ANSWER must be written in the same language as the EMPLOYEE QUESTION below — Arabic question → fully Arabic answer (including all section headings), English question → English answer — regardless of the workspace or interface language. EXCEPTION: if the question explicitly asks for a specific language (e.g. "icp core values in arabic", "اشرح بالإنجليزية"), answer FULLY in that requested language, headings included.
@@ -127,6 +142,7 @@ const INSTR_RULE = `EMPLOYEE ADDITIONAL INSTRUCTIONS (when present in the contex
 
 function studioSystem(type, mode, language, focused, hasFiles) {
   const t = STUDIO_TYPES[type] || STUDIO_TYPES.report;
+  const refsHeading = language === 'ar' ? 'المراجع' : 'References';
   return `You are the document generation engine of the UAEICP Employee Intelligence Workspace.
 TASK: ${t.instr}
 
@@ -134,9 +150,10 @@ ${SCOPE_RULES(focused)}
 ${INSTR_RULE}
 ${MODE_RULES[mode] || MODE_RULES.guarded}
 ${LANG_RULES[language] || LANG_RULES.auto}
+${arabicQualityRule(language, 'generated document')}
 ${hasFiles ? '' : NO_DOCS_NOTE}
 
-CLEAN FORMAT RULE: no inline citations or [doc: ...] markers in the body. End the document with a "References" section ("المراجع" in Arabic) listing each source document and the key fragments relied upon.
+CLEAN FORMAT RULE: no inline citations or [doc: ...] markers in the body. End the document with a "${refsHeading}" section listing each source document and the key fragments relied upon.
 
 Output clean markdown only. No preamble, no explanations outside the document.`;
 }
@@ -144,11 +161,13 @@ Output clean markdown only. No preamble, no explanations outside the document.`;
 function contentPlanSystem(language, focused, hasFiles, kind) {
   const what = kind === 'infographic' ? 'a single-page INFOGRAPHIC' : 'a world-class PRESENTATION (10-14 slides)';
   const unit = kind === 'infographic' ? 'section' : 'slide';
+  const refsLabel = language === 'ar' ? 'المراجع' : 'References';
   return `You are an elite content strategist preparing the complete content architecture for ${what} for employees of the UAE Federal Authority for Identity, Citizenship, Customs & Port Security (UAEICP).
 
 ${SCOPE_RULES(focused)}
 ${INSTR_RULE}
 ${LANG_RULES[language] || LANG_RULES.auto}
+${arabicQualityRule(language, kind === 'infographic' ? 'infographic plan' : 'presentation plan')}
 ${arabicSlideQualityRule(language)}
 ${hasFiles ? '' : NO_DOCS_NOTE}
 
@@ -157,7 +176,7 @@ Produce a rigorous, specific ${unit}-by-${unit} CONTENT PLAN in markdown:
 - For each ${unit}: a working title, the exact key points (specific facts, names, dates, figures — never vague filler), stat callouts with real numbers where they exist, and ${kind === 'infographic' ? 'a suggested visual treatment' : 'a one-line speaker-note angle'}.
 - DENSITY: every ${unit} must carry at least 3 substantive content elements (points, stats, examples, definitions). If a ${unit} would be thin, merge it into another or enrich it — no near-empty ${unit}s.
 - Dense with substance: extract every relevant fact from the material${hasFiles ? '' : ' and your deep knowledge of the subject'}.
-- End with a References list of the sources used.
+- End with a ${refsLabel} list of the sources used.
 Output the plan only — no preamble, no commentary.`;
 }
 
@@ -165,6 +184,7 @@ function deckArtSystem(language) {
   return `You are a world-class presentation art director. Given a content plan and source material, write the complete ART DIRECTION for a cinematic, premium slide deck — the caliber of a national-launch keynote or a AAA agency production.
 
 ${LANG_RULES[language] || LANG_RULES.auto} (EXCEPTION: all image prompts are ALWAYS written in English.)
+${arabicQualityRule(language, 'presentation art direction')}
 ${arabicSlideQualityRule(language)}
 
 Deliver in markdown:
@@ -184,6 +204,7 @@ function pptxSystem(language, focused, hasFiles) {
 ${SCOPE_RULES(focused)}
 ${INSTR_RULE}
 ${LANG_RULES[language] || LANG_RULES.auto}
+${arabicQualityRule(language, 'powerpoint deck')}
 ${arabicSlideQualityRule(language)}
 ${hasFiles === false ? NO_DOCS_NOTE : ''}
 
@@ -245,11 +266,15 @@ Rules:
 }
 
 function infographicSystem(language, focused, hasFiles) {
+  const footerText = language === 'ar'
+    ? 'شريط تذييل: "UAEICP — داخلي، يتطلب تحققاً بشرياً" + سطر مراجع مختصر يذكر مصادر المستندات.'
+    : 'Footer strip: "UAEICP — internal, requires human verification" + a compact References line listing source documents.';
   return `You are an elite information designer creating a single-page INFOGRAPHIC as standalone SVG code for UAEICP employees.
 
 ${SCOPE_RULES(focused)}
 ${INSTR_RULE}
 ${LANG_RULES[language] || LANG_RULES.auto}
+${arabicQualityRule(language, 'infographic')}
 ${hasFiles === false ? NO_DOCS_NOTE : ''}
 
 PIPELINE OBEDIENCE: when the input contains a CONTENT PLAN, follow it exactly — same sections, facts and figures. You design; the plan decides the substance.
@@ -262,7 +287,7 @@ Design rules — design, design, design:
 - Invent a striking modern palette and visual language (or follow the employee's design wishes exactly). Bold header, clear visual hierarchy, generous spacing.
 - Use shapes to build icon-like glyphs, big stat numbers with labels, progress bars/donut arcs for percentages, flow arrows for processes, cards/sections with rounded rects.
 - 4-7 content sections maximum; short punchy text in the response language.
-- Footer strip: "UAEICP — internal, requires human verification" + a compact References line listing source documents.
+- ${footerText}
 - Mark speculation with [SPECULATIVE].`;
 }
 
