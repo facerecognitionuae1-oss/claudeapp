@@ -64,7 +64,7 @@ router.post('/', requireWorkspace, async (req, res) => {
   const language = req.body?.language || detectLang(instructions) || (lastUser ? detectLang(lastUser.content) : null) || ws.language;
   // Live web search runs automatically whenever a search key is configured.
   let webBlock = '';
-  {
+  if (req.body?.web === true) {
     const { webSearch, formatSearch, searchConfigured } = require('../services/search');
     if (searchConfigured()) {
       const q = (instructions || ws.brief || ws.title || '').trim().slice(0, 300);
@@ -72,7 +72,9 @@ router.post('/', requireWorkspace, async (req, res) => {
       webBlock = formatSearch(found, q, language);
     }
   }
-  const context = baseContext(ws, files) + webBlock
+  const kbQuery = [instructions, ws.title, ws.brief, lastUser?.content, files.map(f => f.original_name).join(' ')].filter(Boolean).join('\n').slice(0, 1600);
+  const kb = await require('../services/knowledge').retrieve(kbQuery, 8);
+  const context = baseContext(ws, files) + kb.block + webBlock
     + (convo ? `\n\nCONVERSATION TRANSCRIPT (treat as source material — capture its key questions, answers and conclusions):\n${convo}` : '')
     + (instructions
       ? `\n\nEMPLOYEE ADDITIONAL INSTRUCTIONS (HIGHEST PRIORITY — follow exactly, respond in their language):\n${instructions}`

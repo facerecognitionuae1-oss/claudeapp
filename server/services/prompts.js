@@ -158,6 +158,8 @@ const SCOPE_RULES = focused => focused
 
 const INSTR_RULE = `EMPLOYEE ADDITIONAL INSTRUCTIONS (when present in the context) have the HIGHEST priority. They may be written in Arabic or English — read them carefully, follow them exactly, and write the entire output in the language they are written in.`;
 
+const KNOWLEDGE_RULE = `PRIVATE COMPANY KNOWLEDGE BASE, when present in the context, is approved internal material. Use it naturally with workspace files and conversation context. Do not announce retrieval or expose source labels unless the employee explicitly asks for sources.`;
+
 function studioSystem(type, mode, language, focused, hasFiles) {
   const t = STUDIO_TYPES[type] || STUDIO_TYPES.report;
   const refsHeading = language === 'ar' ? 'المراجع' : 'References';
@@ -166,6 +168,7 @@ TASK: ${t.instr}
 
 ${SCOPE_RULES(focused)}
 ${INSTR_RULE}
+${KNOWLEDGE_RULE}
 ${MODE_RULES[mode] || MODE_RULES.guarded}
 ${LANG_RULES[language] || LANG_RULES.auto}
 ${arabicQualityRule(language, 'generated document')}
@@ -184,6 +187,7 @@ function contentPlanSystem(language, focused, hasFiles, kind) {
 
 ${SCOPE_RULES(focused)}
 ${INSTR_RULE}
+${KNOWLEDGE_RULE}
 ${LANG_RULES[language] || LANG_RULES.auto}
 ${arabicQualityRule(language, kind === 'infographic' ? 'infographic plan' : 'presentation plan')}
 ${arabicSlideQualityRule(language)}
@@ -204,6 +208,7 @@ function deckArtSystem(language) {
 ${LANG_RULES[language] || LANG_RULES.auto} (EXCEPTION: all image prompts are ALWAYS written in English.)
 ${arabicQualityRule(language, 'presentation art direction')}
 ${arabicSlideQualityRule(language)}
+${KNOWLEDGE_RULE}
 
 Deliver in markdown:
 1. CONCEPT — one paragraph: the visual story, mood and emotional register.
@@ -221,6 +226,7 @@ function pptxSystem(language, focused, hasFiles) {
 
 ${SCOPE_RULES(focused)}
 ${INSTR_RULE}
+${KNOWLEDGE_RULE}
 ${LANG_RULES[language] || LANG_RULES.auto}
 ${arabicQualityRule(language, 'powerpoint deck')}
 ${arabicSlideQualityRule(language)}
@@ -291,6 +297,7 @@ function infographicSystem(language, focused, hasFiles) {
 
 ${SCOPE_RULES(focused)}
 ${INSTR_RULE}
+${KNOWLEDGE_RULE}
 ${LANG_RULES[language] || LANG_RULES.auto}
 ${arabicQualityRule(language, 'infographic')}
 ${hasFiles === false ? NO_DOCS_NOTE : ''}

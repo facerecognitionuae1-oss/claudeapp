@@ -28,7 +28,7 @@ router.post('/', requireWorkspace, async (req, res) => {
 
   // Live web search runs automatically whenever a search key is configured.
   let webBlock = '';
-  {
+  if (req.body?.web === true) {
     const { webSearch, formatSearch, searchConfigured } = require('../services/search');
     if (searchConfigured()) {
       const q = (ws.brief || '').trim().slice(0, 300) || ws.title;
@@ -36,8 +36,10 @@ router.post('/', requireWorkspace, async (req, res) => {
       webBlock = formatSearch(found, q, language);
     }
   }
+  const kbQuery = [ws.title, ws.brief, files.map(f => f.original_name).join(' ')].filter(Boolean).join('\n').slice(0, 1000);
+  const kb = await require('../services/knowledge').retrieve(kbQuery, 6);
   const system = analysisSystem(mode, language, files.length > 0);
-  const user = baseContext(ws, files) + webBlock + '\n\nRun the full structured review now.';
+  const user = baseContext(ws, files) + kb.block + webBlock + '\n\nRun the full structured review now.';
   const out = await ai.chat({ provider, model, system, user });
   const result = ai.parseJson(out.text);
   if (!result) return res.status(502).json({ error: 'Model returned unparseable output', raw: out.text.slice(0, 2000) });
