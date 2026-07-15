@@ -1136,12 +1136,37 @@
       if (S.recog) { try { S.recog.stop(); } catch {} }
       S.busy.assist = true;
       let assistantMsg = null;
+      let userMsg = null;
       try {
+        const canOptimisticCreate = !S.chatWs && !pend.length;
+        if (canOptimisticCreate) {
+          const now = new Date().toISOString();
+          const title = (q || 'Chat').slice(0, 60);
+          const responseDir = (hasArabic(q) || /\barabic\b/i.test(q)) ? 'rtl' : 'ltr';
+          S.assistDraft = '';
+          S.chatWs = {
+            workspace: { id: 'tmp-chat-' + Date.now(), title, kind: 'chat', language: S.lang, mode: 'unguarded', created_at: now, status: 'active' },
+            files: [], analyses: [], messages: [], outputs: [], notes: [],
+          };
+          S.chats.unshift(S.chatWs.workspace);
+          userMsg = { id: 'tmp-user-' + Date.now(), role: 'user', content: q, created_at: now };
+          assistantMsg = { id: 'tmp-assistant-' + Date.now(), role: 'assistant', content: '', dir: responseDir, created_at: now };
+          S.chatWs.messages.push(userMsg, assistantMsg);
+          S.assistScrollTarget = userMsg.id;
+          render();
+        } else {
+          render();
+        }
         if (!S.chatWs) {
           const title = (q || (pend[0] && pend[0].name) || 'Chat').slice(0, 60);
           const data = await api('/workspaces', { method: 'POST', body: JSON.stringify({ title, kind: 'chat', language: S.lang, mode: 'unguarded' }) });
           S.chats.unshift(data.workspace);
           S.chatWs = await api('/workspaces/' + data.workspace.id);
+        } else if (String(S.chatWs.workspace.id).startsWith('tmp-chat-')) {
+          const data = await api('/workspaces', { method: 'POST', body: JSON.stringify({ title: S.chatWs.workspace.title, kind: 'chat', language: S.lang, mode: 'unguarded' }) });
+          const tmpId = S.chatWs.workspace.id;
+          S.chatWs.workspace = data.workspace;
+          S.chats = S.chats.map(c => c.id === tmpId ? data.workspace : c);
         }
         if (pend.length) {
           const fd = new FormData();
@@ -1151,13 +1176,16 @@
           else q = q + '\n\n📎 ' + pend.map(f => f.name).join(', ');
           S.assistPending = [];
         }
-        S.assistDraft = '';
-        const responseDir = (hasArabic(q) || /\barabic\b/i.test(q)) ? 'rtl' : 'ltr';
-        const userMsg = { id: 'tmp-user-' + Date.now(), role: 'user', content: q, created_at: new Date().toISOString() };
-        assistantMsg = { id: 'tmp-assistant-' + Date.now(), role: 'assistant', content: '', dir: responseDir, created_at: new Date().toISOString() };
-        S.chatWs.messages.push(userMsg, assistantMsg);
-        S.assistScrollTarget = userMsg.id;
-        render();
+        if (!userMsg) {
+          S.assistDraft = '';
+          const responseDir = (hasArabic(q) || /\barabic\b/i.test(q)) ? 'rtl' : 'ltr';
+          userMsg = { id: 'tmp-user-' + Date.now(), role: 'user', content: q, created_at: new Date().toISOString() };
+          assistantMsg = { id: 'tmp-assistant-' + Date.now(), role: 'assistant', content: '', dir: responseDir, created_at: new Date().toISOString() };
+          S.chatWs.messages.push(userMsg, assistantMsg);
+          S.assistScrollTarget = userMsg.id;
+          render();
+        }
+        const responseDir = assistantMsg.dir || ((hasArabic(q) || /\barabic\b/i.test(q)) ? 'rtl' : 'ltr');
         const res = await fetch(`/api/workspaces/${S.chatWs.workspace.id}/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + S.token },
