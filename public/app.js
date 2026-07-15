@@ -31,6 +31,11 @@
   const attrJson = v => JSON.stringify(v).replace(/"/g, '&quot;');
   const hasArabic = s => /[\u0600-\u06FF]/.test(String(s || ''));
   const textDir = s => hasArabic(s) ? 'rtl' : 'ltr';
+  const cleanChatText = s => String(s || '')
+    .replace(/\s*\[(?:GENERAL KNOWLEDGE|SPECULATIVE)\]\s*/gi, ' ')
+    .replace(/\s*(?:Confidence|الثقة)\s*:?\s*(?:HIGH|MEDIUM|LOW|عالٍ|عالي|متوسط|منخفض)\b\.?/gi, '')
+    .replace(/\s*_?\((?:confidence|الثقة):?\s*(?:HIGH|MEDIUM|LOW|عالٍ|عالي|متوسط|منخفض)\)_?/gi, '')
+    .trim();
   // pptx outputs are ready only once a file exists; Manus decks generate in the background
   const outInfo = o => {
     if ((o.format !== 'pptx' && o.format !== 'png') || o.file_name) return { ready: true, processing: false };
@@ -232,7 +237,7 @@
               <p>${t('chatWelcomeBody')}</p>
             </div>` : `
             <div class="chat-col">
-              ${b.messages.map(m => `<div class="msg ${m.role}" data-mid="${esc(m.id || '')}" dir="${textDir(m.content)}">${m.role === 'assistant' ? md(m.content) : esc(m.content)}</div>`).join('')}
+              ${b.messages.map(m => `<div class="msg ${m.role}" data-mid="${esc(m.id || '')}" dir="${textDir(m.content)}">${m.role === 'assistant' ? md(cleanChatText(m.content)) : esc(m.content)}</div>`).join('')}
               ${busy ? `<div class="msg assistant typing-msg"><span class="typing"><span></span><span></span><span></span></span></div>` : ''}
             </div>`}
           </div>
@@ -549,7 +554,7 @@
           ${b.messages.map(m => `
             <div class="msg ${m.role}" dir="${textDir(m.content)}">
               <div class="who">${m.role === 'user' ? esc(S.user.username) : esc(m.provider ? `${m.provider}${m.model && m.model !== 'demo' ? ' · ' + m.model : ''}` : 'AI')}</div>
-              ${m.role === 'assistant' ? md(m.content) : esc(m.content)}
+              ${m.role === 'assistant' ? md(cleanChatText(m.content)) : esc(m.content)}
             </div>`).join('')}
           ${busy ? `<div class="msg assistant typing-msg"><span class="typing"><span></span><span></span><span></span></span></div>` : ''}
         </div>
@@ -1160,7 +1165,7 @@
           const el = document.querySelector(`[data-mid="${assistantMsg.id}"]`);
           if (!el) return;
           el.dir = textDir(assistantMsg.content);
-          el.innerHTML = assistantMsg.content ? md(assistantMsg.content) : `<span class="typing"><span></span><span></span><span></span></span>`;
+          el.innerHTML = assistantMsg.content ? md(cleanChatText(assistantMsg.content)) : `<span class="typing"><span></span><span></span><span></span></span>`;
         };
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -1181,9 +1186,7 @@
               fallbackError = evt.fallbackError || '';
               if (evt.answer) {
                 const oldId = assistantMsg.id;
-                const streamed = assistantMsg.content;
                 Object.assign(assistantMsg, evt.answer);
-                if (streamed) assistantMsg.content = streamed;
                 const el = document.querySelector(`[data-mid="${oldId}"]`);
                 if (el) el.dataset.mid = assistantMsg.id;
               }

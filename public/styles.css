@@ -23,6 +23,7 @@
   --radius: 12px;
   --shadow: 0 1px 3px rgba(35, 35, 35, .07), 0 4px 18px rgba(35, 35, 35, .06);
   --font: 'IBM Plex Sans', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  --font-ar: 'Noto Naskh Arabic', 'Noto Sans Arabic', 'Segoe UI', Tahoma, Arial, sans-serif;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
@@ -30,7 +31,7 @@ body {
   font-family: var(--font); background: var(--bg); color: var(--ink);
   font-size: 15px; overflow-x: hidden;
 }
-[dir="rtl"] body, [dir="rtl"] { font-family: 'IBM Plex Sans Arabic', 'IBM Plex Sans', system-ui, sans-serif; }
+[dir="rtl"] body, [dir="rtl"] { font-family: var(--font-ar); }
 
 button { font-family: inherit; cursor: pointer; }
 input, select, textarea { font-family: inherit; font-size: 14px; }
@@ -261,7 +262,9 @@ label.f { display: block; font-size: 13px; font-weight: 700; color: var(--black)
 [dir="rtl"] .msg.user { align-self: flex-start; }
 .msg.assistant { align-self: flex-start; background: #fff; border: 1px solid var(--line); border-end-start-radius: 4px; }
 [dir="rtl"] .msg.assistant { align-self: flex-end; }
-.msg[dir="rtl"], .msg[dir="rtl"] p, .msg[dir="rtl"] li, .msg[dir="rtl"] td { text-align: right; unicode-bidi: plaintext; }
+.msg[dir="rtl"], .msg[dir="rtl"] p, .msg[dir="rtl"] li, .msg[dir="rtl"] td { text-align: right; unicode-bidi: plaintext; font-family: var(--font-ar); }
+.msg[dir="rtl"] { font-size: 16px; line-height: 1.9; font-weight: 400; }
+.msg[dir="rtl"] strong { font-weight: 700; }
 .msg[dir="ltr"], .msg[dir="ltr"] p, .msg[dir="ltr"] li, .msg[dir="ltr"] td { text-align: left; unicode-bidi: plaintext; }
 .exec, .item .grow, .output-body, .a-section { unicode-bidi: plaintext; }
 .output-view[dir="rtl"], .output-view[dir="rtl"] p, .output-view[dir="rtl"] li, .output-view[dir="rtl"] td { text-align: right; unicode-bidi: plaintext; }

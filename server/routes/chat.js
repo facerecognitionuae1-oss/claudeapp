@@ -7,6 +7,14 @@ const { baseContext, chatSystem, detectLang } = require('../services/prompts');
 
 const router = express.Router({ mergeParams: true });
 
+const cleanChatAnswer = text => String(text || '')
+  .replace(/\s*\[(?:GENERAL KNOWLEDGE|SPECULATIVE)\]\s*/gi, ' ')
+  .replace(/\s*(?:Confidence|الثقة)\s*:?\s*(?:HIGH|MEDIUM|LOW|عالٍ|عالي|متوسط|منخفض)\b\.?/gi, '')
+  .replace(/\s*_?\((?:confidence|الثقة):?\s*(?:HIGH|MEDIUM|LOW|عالٍ|عالي|متوسط|منخفض)\)_?/gi, '')
+  .replace(/[ \t]+\n/g, '\n')
+  .replace(/\n{3,}/g, '\n\n')
+  .trim();
+
 const logAction = (user, action, wsId, detail) => {
   try {
     store.addLog({ id: require('uuid').v4(), user_id: user.id, username: user.username, action, workspace_id: wsId || null, detail: String(detail || '').slice(0, 400), created_at: new Date().toISOString() });
@@ -60,6 +68,7 @@ ${question.trim()}`;
         provider, model, system, user,
         onDelta: delta => write({ type: 'delta', delta }),
       });
+      out.text = cleanChatAnswer(out.text);
       const answer = await store.addMessage({
         id: uuid(), workspace_id: ws.id, role: 'assistant', content: out.text,
         provider: out.provider, model: out.model, mode, created_at: new Date().toISOString(),
@@ -74,6 +83,7 @@ ${question.trim()}`;
   }
 
   const out = await ai.chat({ provider, model, system, user });
+  out.text = cleanChatAnswer(out.text);
   const answer = await store.addMessage({
     id: uuid(), workspace_id: ws.id, role: 'assistant', content: out.text,
     provider: out.provider, model: out.model, mode, created_at: new Date().toISOString(),

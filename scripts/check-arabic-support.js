@@ -10,6 +10,8 @@ const checks = [
   ['server/routes/studio.js', 'عرض تقديمي', 'Arabic generated deck title'],
   ['server/routes/studio.js', 'إنفوجرافيك', 'Arabic infographic title'],
   ['server/services/search.js', 'translate useful search facts into natural Modern Standard Arabic', 'Arabic web-search translation rule'],
+  ['server/services/prompts.js', 'do not label text as [GENERAL KNOWLEDGE] and do not show confidence labels', 'Chat hides general-knowledge/confidence labels'],
+  ['server/routes/chat.js', 'cleanChatAnswer', 'Chat answer label sanitizer'],
   ['server/services/pptx.js', "rtl ? 'Arial' : 'Calibri'", 'Arabic PPTX font fallback'],
   ['server/services/pptx.js', 'شكرا', 'Arabic PPTX closing text without harakat'],
   ['server/services/prompts.js', 'Do not use harakat', 'Arabic prompt no-harakat rule'],
