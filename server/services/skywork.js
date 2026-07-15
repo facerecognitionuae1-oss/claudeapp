@@ -36,7 +36,7 @@ function ssePost(url, payload, headers, onProgress) {
     let overall = null, idle = null;
     const clearTimers = () => { clearTimeout(overall); clearTimeout(idle); };
     const fail = (e) => { if (settled) return; settled = true; clearTimers(); try { req.destroy(); } catch (x) {} reject(e); };
-    const ok = (v) => { if (settled) return; settled = true; clearTimers(); resolve(v); };
+    const ok = (v) => { if (settled) return; settled = true; clearTimers(); try { req.destroy(); } catch (x) {} resolve(v); };
 
     const state = { downloadUrl: '', sawActivity: false };
     overall = setTimeout(() => fail(new Error(`Skywork timed out: no finished deck after ${OVERALL_MIN} min`)), OVERALL_MIN * 60 * 1000);
@@ -70,12 +70,14 @@ function ssePost(url, payload, headers, onProgress) {
           if (data.phase === 'done') {
             state.downloadUrl = data.download_url || '';
             if (!state.downloadUrl) return fail(new Error('Skywork: completion event without download_url'));
+            return ok(state);
           }
         } else if (evName === 'progress') {
           state.sawActivity = true;
           if (onProgress) { try { onProgress({ progress: data.percentage, stage: data.message || 'design', phase: 'progress' }); } catch (e) {} }
         } else if (evName === 'success') {
           state.downloadUrl = data.file_url || state.downloadUrl;
+          if (state.downloadUrl) return ok(state);
         } else if (evName === 'error') {
           const msg = data.message || JSON.stringify(data);
           if (/insufficient benefit|quota|credit/i.test(msg)) return fail(new Error('Skywork credits/plan exhausted: ' + msg));

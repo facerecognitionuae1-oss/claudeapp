@@ -40,13 +40,14 @@
   const outInfo = o => {
     if ((o.format !== 'pptx' && o.format !== 'png') || o.file_name) return { ready: true, processing: false };
     let st = ''; try { st = JSON.parse(o.content || '{}').status || ''; } catch {}
-    return { ready: false, processing: st === 'processing' };
+    return { ready: false, processing: st === 'processing', error: st === 'error' || st === 'no_file' };
   };
   const outActions = (o, dl) => {
     const oi = outInfo(o);
     if (oi.ready) return ((o.format !== 'pptx' && o.format !== 'png') ? `<button class="btn btn-ghost btn-sm" onclick="A.viewOutput('${o.id}')">${t('view')}</button>` : '') +
       `<button class="btn btn-primary btn-sm" onclick="A.${dl}('${o.id}')">${t('download')}</button>`;
     return oi.processing ? `<span class="badge mode" style="display:inline-flex;align-items:center;gap:7px"><span class="spinner dark" style="width:12px;height:12px"></span> ${t('generating')}</span>`
+      : oi.error ? `<span class="badge warn">${t('error')}</span>`
       : `<button class="btn btn-ghost btn-sm" onclick="A.${dl}('${o.id}')">↻ ${t('retryCheck')}</button>`;
   };
 

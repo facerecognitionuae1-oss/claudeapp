@@ -49,6 +49,10 @@ const attachmentHeader = (name, fallback = 'download') => {
   const ascii = clean.replace(/[^\x20-\x7E]/g, '_').replace(/["\\;]/g, '_');
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(clean)}`;
 };
+const withTimeout = (promise, ms, label) => new Promise((resolve, reject) => {
+  const timer = setTimeout(() => reject(new Error(`${label} timed out`)), ms);
+  promise.then(v => { clearTimeout(timer); resolve(v); }, e => { clearTimeout(timer); reject(e); });
+});
 const studioTitle = (type, language) => {
   if (language !== 'ar') return STUDIO_TYPES[type]?.title || type;
   return {
@@ -162,7 +166,8 @@ router.post('/', requireWorkspace, async (req, res) => {
             const skReference = 'VISUAL QUALITY TARGET:\nMatch the polished image-rich style of a premium Skywork presentation: large generated hero visual, dark refined panels, gold/accent icon cards, clean readable typography, and purposeful slide composition.\n\nBACKGROUND RESEARCH (use freely for facts and data — structure and design are entirely up to you):\n' + plan.text.slice(0, 28000)
               + '\n\nSOURCE MATERIAL:\n' + deckContext.slice(0, 28000);
             let lastProgressWrite = 0;
-            const { buf } = await generatePpt({
+            const skyworkWaitMs = Math.max(5, parseInt(process.env.PPT_SKYWORK_WAIT_MIN || '18', 10)) * 60 * 1000;
+            const { buf } = await withTimeout(generatePpt({
               query: skQuery,
               language: skLang,
               reference: skReference + (rtlRule ? '\n\n' + rtlRule : ''),
@@ -174,7 +179,7 @@ router.post('/', requireWorkspace, async (req, res) => {
                   content: JSON.stringify({ status: 'processing', pipeline: pipeLabel, progress: progress || '', stage: stage || '' }),
                 }).catch(() => {});
               },
-            });
+            }), skyworkWaitMs, 'Skywork PPT');
             const cleanBuf = await sanitizePptxArabicBuffer(buf, language === 'ar');
             const fileName = `${deckFileBase(requestedDeckTitle, ws)}.pptx`;
             try { require('fs').writeFileSync(path.join(config.generatedDir, fileName), cleanBuf); } catch {}

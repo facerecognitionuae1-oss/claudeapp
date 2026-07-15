@@ -6,6 +6,24 @@ const { requireAuth, requireWorkspace } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
 
+async function settleStaleOutputs(outputs) {
+  const cutoffMs = Math.max(20, parseInt(process.env.OUTPUT_STALE_MIN || '45', 10)) * 60 * 1000;
+  const now = Date.now();
+  await Promise.all((outputs || []).map(async o => {
+    if ((o.format !== 'pptx' && o.format !== 'png') || o.file_name) return;
+    let meta = {};
+    try { meta = JSON.parse(o.content || '{}'); } catch {}
+    if (meta.status !== 'processing' || meta.manus_task_id) return;
+    const age = now - Date.parse(o.created_at || 0);
+    if (!Number.isFinite(age) || age < cutoffMs) return;
+    const content = JSON.stringify({ ...meta, status: 'error', stale: true });
+    o.content = content;
+    o.title = `${o.title || o.type} (timed out - generate again)`;
+    await store.updateOutput(o.id, { title: o.title, content }).catch(() => {});
+  }));
+  return outputs;
+}
+
 router.get('/', async (req, res) => {
   const includeArchived = req.query.archived === '1';
   res.json({ workspaces: await store.listWorkspaces(req.user.id, includeArchived) });
@@ -31,6 +49,7 @@ router.get('/:id', requireWorkspace, async (req, res) => {
     store.listFiles(ws.id), store.listAnalyses(ws.id), store.listMessages(ws.id),
     store.listOutputs(ws.id), store.listNotes(ws.id),
   ]);
+  await settleStaleOutputs(outputs);
   res.json({
     workspace: ws,
     files: files.map(({ extracted_text, ...f }) => ({ ...f, has_text: !!(extracted_text || '').trim() })),
