@@ -26,6 +26,29 @@ const logAction = (user, action, wsId, detail) => {
   } catch {}
 };
 const titleText = (language, en, ar) => language === 'ar' ? ar : en;
+const compactTitle = s => String(s || '').replace(/\s+/g, ' ').replace(/[^\p{L}\p{N}\s&()_\-–—:،]/gu, '').trim();
+const isGenericDeckTitle = s => /^(briefing deck|powerpoint briefing deck|deck|presentation|عرض تقديمي|عرض)$/i.test(compactTitle(s));
+const deckTitleFromRequest = (language, instructions, ws, lastUser) => {
+  const source = compactTitle(instructions || lastUser?.content || ws.brief || ws.title);
+  if (!source) return titleText(language, 'Briefing Deck', 'عرض تقديمي');
+  const clipped = source.length > 58 ? source.slice(0, 58).trim() + '…' : source;
+  return language === 'ar' ? `عرض: ${clipped}` : `${clipped} Deck`;
+};
+const safeFileBase = s => {
+  const base = compactTitle(s)
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 80);
+  return base || 'deck';
+};
+const deckFileBase = (title, ws) => `${safeFileBase(title)}-${ws.id.slice(0, 8)}-${Date.now()}`;
+const attachmentHeader = (name, fallback = 'download') => {
+  const clean = String(name || fallback).replace(/[\r\n]/g, ' ').trim() || fallback;
+  const ascii = clean.replace(/[^\x20-\x7E]/g, '_').replace(/["\\;]/g, '_');
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(clean)}`;
+};
 const studioTitle = (type, language) => {
   if (language !== 'ar') return STUDIO_TYPES[type]?.title || type;
   return {
@@ -96,11 +119,12 @@ router.post('/', requireWorkspace, async (req, res) => {
       : (forced === 'claude') ? 'claude'
       : skyworkConfigured() ? 'skywork' : useManus ? 'manus' : 'claude';
     const pipeLabel = engine === 'skywork' ? 'GPT+Claude+Skywork' : engine === 'manus' ? 'GPT+Claude+Manus' : 'GPT+Claude';
+    const requestedDeckTitle = deckTitleFromRequest(language, instructions, ws, lastUser);
 
     // Respond IMMEDIATELY — the multi-AI pipeline runs in the background so nothing can time out.
     const output = await store.addOutput({
       id: uuid(), workspace_id: ws.id, type: 'pptx', format: 'pptx',
-      title: `${titleText(language, 'Briefing Deck', 'عرض تقديمي')} (${pipeLabel} — ${titleText(language, 'generating…', 'قيد الإنشاء…')})`, file_name: '',
+      title: `${requestedDeckTitle} (${pipeLabel} — ${titleText(language, 'generating…', 'قيد الإنشاء…')})`, file_name: '',
       content: JSON.stringify({ status: 'processing', pipeline: pipeLabel }),
       provider: pipeLabel, created_at: new Date().toISOString(),
     });
@@ -141,10 +165,10 @@ router.post('/', requireWorkspace, async (req, res) => {
                 }).catch(() => {});
               },
             });
-            const fileName = `deck-${ws.id.slice(0, 8)}-${Date.now()}.pptx`;
+            const fileName = `${deckFileBase(requestedDeckTitle, ws)}.pptx`;
             try { require('fs').writeFileSync(path.join(config.generatedDir, fileName), buf); } catch {}
             await store.updateOutput(output.id, {
-              title: titleText(language, 'Briefing Deck', 'عرض تقديمي'), file_name: fileName,
+              title: requestedDeckTitle, file_name: fileName,
               content: JSON.stringify({ engine: 'skywork', status: 'done' }), file_data: buf,
             });
             console.log('[pipeline] Skywork deck ready:', output.id);
@@ -192,7 +216,7 @@ ${context.slice(0, 40000)}`;
           const finalPrompt = refIds.length
             ? deckPrompt + '\n\nSTYLE REFERENCE: the attached PDF shows the REQUIRED level of craft — density, layered composition, framed panels, iconography, typographic care, overall finish. Match that LEVEL. Do NOT copy its topic, text, colors or exact layouts; this deck has its own subject and its own theme from the art direction above.'
             : deckPrompt;
-          const { taskId, taskUrl } = await createDeckTask(finalPrompt, language, ('UAEICP deck — ' + ws.title).slice(0, 80), refIds);
+          const { taskId, taskUrl } = await createDeckTask(finalPrompt, language, requestedDeckTitle.slice(0, 80), refIds);
           await store.updateOutput(output.id, {
             content: JSON.stringify({ status: 'processing', pipeline: pipeLabel, manus_task_id: taskId, manus_task_url: taskUrl }),
           });
@@ -238,12 +262,13 @@ ${context.slice(0, 40000)}`;
           }
         }
 
-        const fileBase = `deck-${ws.id.slice(0, 8)}-${Date.now()}`;
+        const finalTitle = isGenericDeckTitle(spec.title) ? requestedDeckTitle : (compactTitle(spec.title) || requestedDeckTitle);
+        const fileBase = deckFileBase(finalTitle, ws);
         const fileName = await buildDeck(spec, fileBase, language === 'ar', images);
         let fileData = null;
         try { fileData = require('fs').readFileSync(path.join(config.generatedDir, fileName)); } catch {}
         await store.updateOutput(output.id, {
-          title: spec.title || titleText(language, 'Briefing Deck', 'عرض تقديمي'), file_name: fileName,
+          title: finalTitle, file_name: fileName,
           content: JSON.stringify(spec), file_data: fileData,
         });
         console.log('[pipeline] deck ready:', output.id);
@@ -331,7 +356,7 @@ router.get('/:outputId/download', requireWorkspace, async (req, res) => {
     const data = await store.getOutputFile(o.id);
     if (data && data.length) {
       res.setHeader('Content-Type', 'image/png');
-      res.setHeader('Content-Disposition', `attachment; filename="${o.file_name || 'infographic.png'}"`);
+      res.setHeader('Content-Disposition', attachmentHeader(o.file_name || 'infographic.png', 'infographic.png'));
       return res.send(data);
     }
     if (o.file_name) return res.download(path.join(config.generatedDir, o.file_name), o.file_name);
@@ -345,7 +370,7 @@ router.get('/:outputId/download', requireWorkspace, async (req, res) => {
     const data = await store.getOutputFile(o.id);
     if (data && data.length) {
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
-      res.setHeader('Content-Disposition', `attachment; filename="${o.file_name || 'deck.pptx'}"`);
+      res.setHeader('Content-Disposition', attachmentHeader(o.file_name || `${safeFileBase(o.title || 'deck')}.pptx`, 'deck.pptx'));
       return res.send(data);
     }
     if (o.file_name) return res.download(path.join(config.generatedDir, o.file_name), o.file_name);
@@ -356,12 +381,14 @@ router.get('/:outputId/download', requireWorkspace, async (req, res) => {
         const { fetchDeckNow } = require('../services/manus');
         const chk = await fetchDeckNow(meta.manus_task_id).catch(() => null);
         if (chk && chk.status === 'ready' && chk.buf) {
+          const recoveredTitle = o.title && !/generating|قيد الإنشاء|timed out/i.test(o.title) ? o.title : deckTitleFromRequest(req.workspace.language, '', req.workspace, null);
+          const recoveredName = `${safeFileBase(recoveredTitle)}.pptx`;
           await store.updateOutput(o.id, {
-            title: titleText(req.workspace.language, 'Briefing Deck', 'عرض تقديمي'), file_name: chk.name,
+            title: recoveredTitle, file_name: recoveredName,
             file_data: chk.buf, content: JSON.stringify({ ...meta, status: 'done' }),
           });
           res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
-          res.setHeader('Content-Disposition', `attachment; filename="${chk.name}"`);
+          res.setHeader('Content-Disposition', attachmentHeader(recoveredName, 'deck.pptx'));
           return res.send(chk.buf);
         }
         if (chk && (chk.status === 'running' || chk.status === 'waiting'))
@@ -375,7 +402,7 @@ router.get('/:outputId/download', requireWorkspace, async (req, res) => {
   const ext = o.format === 'json' ? 'json' : o.format === 'txt' ? 'txt' : o.format === 'svg' ? 'svg' : 'md';
   const mime = o.format === 'json' ? 'application/json' : o.format === 'svg' ? 'image/svg+xml' : 'text/markdown';
   res.setHeader('Content-Type', `${mime}; charset=utf-8`);
-  res.setHeader('Content-Disposition', `attachment; filename="${o.type}-${o.id.slice(0, 8)}.${ext}"`);
+  res.setHeader('Content-Disposition', attachmentHeader(`${o.type}-${o.id.slice(0, 8)}.${ext}`));
   res.send(o.content);
 });
 
