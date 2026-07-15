@@ -49,8 +49,9 @@ router.post('/', requireWorkspace, async (req, res) => {
       webBlock = formatSearch(found, question.trim(), language);
     }
   }
+  const kb = await require('../services/knowledge').retrieve(question.trim(), 5);
   const system = chatSystem(mode, language, files.length > 0);
-  const user = `${baseContext(ws, files, 2500, 9000)}${webBlock}
+  const user = `${baseContext(ws, files, 2500, 9000)}${kb.block}${webBlock}
 
 RECENT CONVERSATION:
 ${historyText || '(none)'}

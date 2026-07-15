@@ -657,12 +657,48 @@
       </div>`;
   }
 
+  function adminKnowledgeView() {
+    const docs = S.knowledgeDocs || [];
+    return `
+      <div class="page-head">
+        <h2>${t('knowledgeBase')}</h2>
+        <button class="btn btn-ghost btn-sm" onclick="A.adminShowUsers()">👥 ${t('usersTitle')}</button>
+        <button class="btn btn-ghost btn-sm" onclick="A.adminShowLogs()">📋 ${t('activityLog')}</button>
+        <div class="grow"></div>
+      </div>
+      <form class="card" style="padding:16px;margin-bottom:14px" onsubmit="A.uploadKnowledge(event)">
+        <label class="f">${t('uploadKnowledge')}</label>
+        <input class="input" type="file" name="files" multiple required>
+        <div class="help">${t('knowledgeHint')}</div>
+        <div class="actions"><button class="btn btn-primary" ${S.busy.knowledge ? 'disabled' : ''}>${S.busy.knowledge ? t('uploadingFiles') : t('uploadFiles')}</button></div>
+      </form>
+      <div class="card" style="overflow-x:auto">
+        <table class="admin">
+          <tr><th>${t('files')}</th><th>${t('language')}</th><th>${t('status')}</th><th>${t('chunks')}</th><th>${t('time')}</th><th></th></tr>
+          ${docs.map(d => `<tr>
+            <td><strong>${esc(d.title || d.original_name)}</strong><div style="font-size:12px;color:var(--muted)">${esc(d.original_name || '')}</div></td>
+            <td>${esc(d.language || 'auto')}</td>
+            <td><span class="badge ${d.active === false ? 'low' : 'high'}">${d.active === false ? t('inactive') : t('active')}</span></td>
+            <td>${Number(d.chunk_count || 0)}</td>
+            <td style="white-space:nowrap">${new Date(d.created_at).toLocaleString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</td>
+            <td style="white-space:nowrap">
+              <button class="btn btn-ghost btn-sm" onclick="A.toggleKnowledge('${d.id}', ${d.active === false ? 'true' : 'false'})">${d.active === false ? t('activate') : t('deactivate')}</button>
+              <button class="btn btn-danger btn-sm" onclick="A.deleteKnowledge('${d.id}')">${t('delete')}</button>
+            </td>
+          </tr>`).join('')}
+        </table>
+        ${docs.length === 0 ? `<div class="empty-state">${t('empty')}</div>` : ''}
+      </div>`;
+  }
+
   function adminView() {
+    if ((S.adminTab || 'users') === 'knowledge') return adminKnowledgeView();
     if ((S.adminTab || 'users') === 'logs') return adminLogsView();
     const users = S.adminUsers || [];
     return `
       <div class="page-head">
         <h2>${t('usersTitle')}</h2>
+        <button class="btn btn-ghost btn-sm" onclick="A.adminShowKnowledge()">📚 ${t('knowledgeBase')}</button>
         <button class="btn btn-ghost btn-sm" onclick="A.adminShowLogs()">📋 ${t('activityLog')}</button>
         <button class="btn btn-ghost btn-sm" onclick="A.downloadBackup()">💾 ${t('backup')}</button>
         <div class="grow"></div>
@@ -1290,6 +1326,10 @@
       try { S.adminLogs = (await api('/users/logs')).logs; S.adminTab = 'logs'; render(); }
       catch (err) { toast(err.message, true); }
     },
+    async adminShowKnowledge() {
+      try { S.knowledgeDocs = (await api('/knowledge')).documents; S.adminTab = 'knowledge'; S.view = 'admin'; render(); }
+      catch (err) { toast(err.message, true); }
+    },
     adminShowUsers() { A.loadAdmin(); },
     downloadBackup() { A._download('/api/users/backup'); },
     openNewUser() { S.modal = userModal(null); render(); },
@@ -1315,6 +1355,24 @@
     async deleteUser(id) {
       if (!confirm(t('confirmDelete'))) return;
       try { await api('/users/' + id, { method: 'DELETE' }); A.loadAdmin(); } catch (err) { toast(err.message, true); }
+    },
+    async uploadKnowledge(e) {
+      e.preventDefault();
+      const fd = new FormData();
+      for (const f of e.target.files.files) fd.append('files', f);
+      S.busy.knowledge = true; render();
+      try { await api('/knowledge', { method: 'POST', body: fd }); await A.adminShowKnowledge(); }
+      catch (err) { toast(err.message, true); }
+      S.busy.knowledge = false; render();
+    },
+    async toggleKnowledge(id, active) {
+      try { await api('/knowledge/' + id, { method: 'PATCH', body: JSON.stringify({ active }) }); await A.adminShowKnowledge(); }
+      catch (err) { toast(err.message, true); }
+    },
+    async deleteKnowledge(id) {
+      if (!confirm(t('confirmDelete'))) return;
+      try { await api('/knowledge/' + id, { method: 'DELETE' }); await A.adminShowKnowledge(); }
+      catch (err) { toast(err.message, true); }
     },
   };
   window.A = A;

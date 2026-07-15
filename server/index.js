@@ -18,6 +18,7 @@ app.get('/api/providers', requireAuth, (req, res) => res.json({ providers: ai.li
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
+app.use('/api/knowledge', require('./routes/knowledge'));
 app.use('/api/workspaces', require('./routes/workspaces'));
 app.use('/api/workspaces/:wsId/files', require('./routes/files'));
 app.use('/api/workspaces/:wsId/analysis', require('./routes/analysis'));

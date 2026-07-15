@@ -101,3 +101,31 @@ CREATE INDEX IF NOT EXISTS idx_ws_owner ON workspaces(owner_id);
 CREATE INDEX IF NOT EXISTS idx_files_ws ON files(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_msgs_ws ON messages(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_outputs_ws ON outputs(workspace_id);
+
+CREATE TABLE IF NOT EXISTS knowledge_documents (
+  id UUID PRIMARY KEY,
+  title TEXT NOT NULL,
+  original_name TEXT NOT NULL,
+  stored_name TEXT DEFAULT '',
+  mime_type TEXT DEFAULT '',
+  size_bytes BIGINT DEFAULT 0,
+  language TEXT DEFAULT 'auto',
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  chunk_count INTEGER NOT NULL DEFAULT 0,
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_chunks (
+  id UUID PRIMARY KEY,
+  document_id UUID NOT NULL REFERENCES knowledge_documents(id) ON DELETE CASCADE,
+  chunk_index INTEGER NOT NULL,
+  content TEXT NOT NULL,
+  embedding_json JSONB,
+  metadata JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_docs_active ON knowledge_documents(active);
+CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_doc ON knowledge_chunks(document_id);

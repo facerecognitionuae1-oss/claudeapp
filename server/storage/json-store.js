@@ -10,10 +10,10 @@ class JsonStore {
       try { this.db = JSON.parse(fs.readFileSync(dataFile, 'utf8')); }
       catch { this.db = this._empty(); }
     } else this.db = this._empty();
-    for (const k of ['users','workspaces','files','analyses','messages','outputs','notes','logs'])
+    for (const k of ['users','workspaces','files','analyses','messages','outputs','notes','logs','knowledge_documents','knowledge_chunks'])
       if (!Array.isArray(this.db[k])) this.db[k] = [];
   }
-  _empty() { return { users: [], workspaces: [], files: [], analyses: [], messages: [], outputs: [], notes: [], logs: [] }; }
+  _empty() { return { users: [], workspaces: [], files: [], analyses: [], messages: [], outputs: [], notes: [], logs: [], knowledge_documents: [], knowledge_chunks: [] }; }
   _save() { fs.writeFileSync(this.file, JSON.stringify(this.db, null, 2)); }
   async init() {}
 
@@ -104,6 +104,28 @@ class JsonStore {
   async dump() { return { exported_at: new Date().toISOString(), storage: 'json', ...this.db }; }
   async listLogs(limit = 300) {
     return [...this.db.logs].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '')).slice(0, limit);
+  }
+
+  // Knowledge base
+  async addKnowledgeDocument(d) { this.db.knowledge_documents.push(d); this._save(); return d; }
+  async updateKnowledgeDocument(id, patch) {
+    const d = this.db.knowledge_documents.find(x => x.id === id); if (!d) return null;
+    Object.assign(d, patch, { updated_at: new Date().toISOString() }); this._save(); return d;
+  }
+  async listKnowledgeDocuments() {
+    return [...this.db.knowledge_documents].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+  }
+  async deleteKnowledgeDocument(id) {
+    this.db.knowledge_documents = this.db.knowledge_documents.filter(d => d.id !== id);
+    this.db.knowledge_chunks = this.db.knowledge_chunks.filter(c => c.document_id !== id);
+    this._save();
+  }
+  async addKnowledgeChunks(chunks) { this.db.knowledge_chunks.push(...chunks); this._save(); }
+  async listKnowledgeChunks(activeOnly = true) {
+    const docs = new Map(this.db.knowledge_documents.map(d => [d.id, d]));
+    return this.db.knowledge_chunks
+      .map(c => ({ ...c, document_title: docs.get(c.document_id)?.title || '', original_name: docs.get(c.document_id)?.original_name || '', active: docs.get(c.document_id)?.active !== false }))
+      .filter(c => !activeOnly || c.active);
   }
 }
 

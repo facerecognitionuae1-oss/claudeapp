@@ -131,6 +131,44 @@ class PgStore {
   }
   async listLogs(limit = 300) { return this.q('SELECT * FROM logs ORDER BY created_at DESC LIMIT $1', [limit]); }
 
+  // Knowledge base
+  async addKnowledgeDocument(d) {
+    await this.q(
+      `INSERT INTO knowledge_documents (id, title, original_name, stored_name, mime_type, size_bytes, language, active, chunk_count, created_by, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [d.id, d.title, d.original_name, d.stored_name || '', d.mime_type || '', d.size_bytes || 0, d.language || 'auto',
+        d.active !== false, d.chunk_count || 0, d.created_by || null, d.created_at, d.updated_at || d.created_at]);
+    return d;
+  }
+  async updateKnowledgeDocument(id, patch) {
+    patch = { ...patch, updated_at: new Date().toISOString() };
+    const cols = Object.keys(patch);
+    if (!cols.length) return (await this.q('SELECT * FROM knowledge_documents WHERE id=$1', [id]))[0] || null;
+    const sets = cols.map((c, i) => `${c}=$${i + 2}`).join(', ');
+    await this.q(`UPDATE knowledge_documents SET ${sets} WHERE id=$1`, [id, ...cols.map(c => patch[c])]);
+    return (await this.q('SELECT * FROM knowledge_documents WHERE id=$1', [id]))[0] || null;
+  }
+  async listKnowledgeDocuments() {
+    return this.q('SELECT * FROM knowledge_documents ORDER BY created_at DESC');
+  }
+  async deleteKnowledgeDocument(id) { await this.q('DELETE FROM knowledge_documents WHERE id=$1', [id]); }
+  async addKnowledgeChunks(chunks) {
+    for (const c of chunks) {
+      await this.q(
+        `INSERT INTO knowledge_chunks (id, document_id, chunk_index, content, embedding_json, metadata, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [c.id, c.document_id, c.chunk_index, c.content, c.embedding_json ? JSON.stringify(c.embedding_json) : null,
+          JSON.stringify(c.metadata || {}), c.created_at]);
+    }
+  }
+  async listKnowledgeChunks(activeOnly = true) {
+    return this.q(
+      `SELECT c.*, d.title AS document_title, d.original_name, d.language, d.active
+       FROM knowledge_chunks c JOIN knowledge_documents d ON d.id=c.document_id
+       ${activeOnly ? 'WHERE d.active = TRUE' : ''}
+       ORDER BY d.created_at DESC, c.chunk_index ASC`);
+  }
+
   // Full backup (binary file contents excluded to keep the export light)
   async dump() {
     const out = { exported_at: new Date().toISOString(), storage: 'postgres' };
@@ -142,6 +180,8 @@ class PgStore {
     out.outputs = await this.q('SELECT id, workspace_id, type, format, title, file_name, content, provider, created_at FROM outputs');
     out.notes = await this.q('SELECT * FROM notes');
     out.logs = await this.q('SELECT * FROM logs');
+    out.knowledge_documents = await this.q('SELECT * FROM knowledge_documents');
+    out.knowledge_chunks = await this.q('SELECT id, document_id, chunk_index, content, metadata, created_at FROM knowledge_chunks');
     return out;
   }
 }
