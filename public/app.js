@@ -237,7 +237,7 @@
               <p>${t('chatWelcomeBody')}</p>
             </div>` : `
             <div class="chat-col">
-              ${b.messages.map(m => `<div class="msg ${m.role}" data-mid="${esc(m.id || '')}" dir="${textDir(m.content)}">${m.role === 'assistant' ? md(cleanChatText(m.content)) : esc(m.content)}</div>`).join('')}
+              ${b.messages.map(m => `<div class="msg ${m.role}" data-mid="${esc(m.id || '')}" dir="${m.dir || textDir(m.content)}">${m.role === 'assistant' ? md(cleanChatText(m.content)) : esc(m.content)}</div>`).join('')}
               ${busy ? `<div class="msg assistant typing-msg"><span class="typing"><span></span><span></span><span></span></span></div>` : ''}
             </div>`}
           </div>
@@ -729,7 +729,11 @@
     const log = $('#chat-log');
     if (log) log.scrollTop = log.scrollHeight;
     const alog = $('#assist-log');
-    if (alog && !S.keepAssistScroll) alog.scrollTop = alog.scrollHeight;
+    if (alog && S.assistScrollTarget) {
+      const target = document.querySelector(`[data-mid="${S.assistScrollTarget}"]`);
+      if (target) alog.scrollTop = Math.max(0, target.offsetTop - alog.offsetTop - 8);
+      S.assistScrollTarget = '';
+    } else if (alog && !S.keepAssistScroll) alog.scrollTop = alog.scrollHeight;
     S.keepAssistScroll = false;
     bindDropzone();
     scheduleOutputPoll();
@@ -1148,9 +1152,11 @@
           S.assistPending = [];
         }
         S.assistDraft = '';
+        const responseDir = (hasArabic(q) || /\barabic\b/i.test(q)) ? 'rtl' : 'ltr';
         const userMsg = { id: 'tmp-user-' + Date.now(), role: 'user', content: q, created_at: new Date().toISOString() };
-        assistantMsg = { id: 'tmp-assistant-' + Date.now(), role: 'assistant', content: '', created_at: new Date().toISOString() };
+        assistantMsg = { id: 'tmp-assistant-' + Date.now(), role: 'assistant', content: '', dir: responseDir, created_at: new Date().toISOString() };
         S.chatWs.messages.push(userMsg, assistantMsg);
+        S.assistScrollTarget = userMsg.id;
         render();
         const res = await fetch(`/api/workspaces/${S.chatWs.workspace.id}/chat`, {
           method: 'POST',
@@ -1164,7 +1170,7 @@
         const updateBubble = () => {
           const el = document.querySelector(`[data-mid="${assistantMsg.id}"]`);
           if (!el) return;
-          el.dir = textDir(assistantMsg.content);
+          el.dir = assistantMsg.content ? textDir(assistantMsg.content) : responseDir;
           el.innerHTML = assistantMsg.content ? md(cleanChatText(assistantMsg.content)) : `<span class="typing"><span></span><span></span><span></span></span>`;
         };
         const reader = res.body.getReader();
@@ -1199,7 +1205,7 @@
         if (fallbackError) toast('Provider failed, demo fallback used', true);
       } catch (err) { toast(err.message, true); }
       S.busy.assist = false;
-      S.keepAssistScroll = true;
+      if (assistantMsg) S.assistScrollTarget = assistantMsg.id;
       render();
     },
     openGenFromChat() {

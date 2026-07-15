@@ -260,8 +260,10 @@ label.f { display: block; font-size: 13px; font-weight: 700; color: var(--black)
 }
 .msg.user { align-self: flex-end; background: var(--black); color: #fff; border-end-end-radius: 4px; }
 [dir="rtl"] .msg.user { align-self: flex-start; }
+.msg.user[dir="rtl"] { align-self: flex-start; }
 .msg.assistant { align-self: flex-start; background: #fff; border: 1px solid var(--line); border-end-start-radius: 4px; }
 [dir="rtl"] .msg.assistant { align-self: flex-end; }
+.msg.assistant[dir="rtl"] { align-self: flex-end; }
 .msg[dir="rtl"], .msg[dir="rtl"] p, .msg[dir="rtl"] li, .msg[dir="rtl"] td { text-align: right; unicode-bidi: plaintext; font-family: var(--font-ar); }
 .msg[dir="rtl"] { font-size: 16px; line-height: 1.9; font-weight: 400; }
 .msg[dir="rtl"] strong { font-weight: 700; }
