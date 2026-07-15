@@ -148,8 +148,9 @@ router.post('/', requireWorkspace, async (req, res) => {
           try {
             const skLang = language === 'ar' ? 'Arabic' : 'English';
             const rtlRule = arabicSlideQualityRule(language);
-            const skQuery = `${(instructions || ws.brief || ws.title || 'Briefing deck').trim().slice(0, 1200)} — presentation in ${skLang}.${focused ? ' Cover only the points requested above.' : ''}`;
-            const skReference = 'BACKGROUND RESEARCH (use freely for facts and data — structure and design are entirely up to you):\n' + plan.text.slice(0, 28000)
+            const visualMandate = `Create a premium, image-rich 16:9 PowerPoint deck in ${skLang}. Use high-end generated visuals or designed illustrations on every substantive slide: hero devices, government service interfaces, abstract security/data networks, UAE identity motifs, layered icon cards, and cinematic backgrounds. Balance information and visuals: not sparse, not cramped. For Arabic, use clean RTL Arabic typography with no harakat/tashkeel, no broken mixed-direction phrases, and no overlapping text.`;
+            const skQuery = `${(instructions || ws.brief || ws.title || 'Briefing deck').trim().slice(0, 1200)} — ${visualMandate}${focused ? ' Cover only the points requested above.' : ''}`;
+            const skReference = 'VISUAL QUALITY TARGET:\nMatch the polished image-rich style of a premium Skywork presentation: large generated hero visual, dark refined panels, gold/accent icon cards, clean readable typography, and purposeful slide composition.\n\nBACKGROUND RESEARCH (use freely for facts and data — structure and design are entirely up to you):\n' + plan.text.slice(0, 28000)
               + '\n\nSOURCE MATERIAL:\n' + context.slice(0, 28000);
             let lastProgressWrite = 0;
             const { buf } = await generatePpt({

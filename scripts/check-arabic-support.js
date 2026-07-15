@@ -20,7 +20,7 @@ const checks = [
   ['server/services/knowledge.js', 'PRIVATE COMPANY KNOWLEDGE BASE', 'Knowledge service formats private context'],
   ['server/routes/knowledge.js', 'Admin only', 'Admin-only knowledge API'],
   ['public/app.js', 'uploadKnowledge', 'Knowledge base admin UI'],
-  ['server/services/pptx.js', "rtl ? 'Tahoma' : 'Calibri'", 'Arabic PPTX font fallback'],
+  ['server/services/pptx.js', "const ARABIC_FONT = 'Tahoma'", 'Arabic PPTX font fallback'],
   ['server/services/pptx.js', 'شكرا', 'Arabic PPTX closing text without harakat'],
   ['server/services/prompts.js', 'Do not use harakat', 'Arabic prompt no-harakat rule'],
   ['public/app.js', 'textDir', 'Dynamic message direction'],
