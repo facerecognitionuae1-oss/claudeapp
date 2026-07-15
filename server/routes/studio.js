@@ -26,6 +26,7 @@ const logAction = (user, action, wsId, detail) => {
   } catch {}
 };
 const titleText = (language, en, ar) => language === 'ar' ? ar : en;
+const currentDateText = () => new Date().toISOString().slice(0, 10);
 const compactTitle = s => String(s || '').replace(/\s+/g, ' ').replace(/[^\p{L}\p{N}\s&()_\-–—:،]/gu, '').trim();
 const isGenericDeckTitle = s => /^(briefing deck|powerpoint briefing deck|deck|presentation|عرض تقديمي|عرض)$/i.test(compactTitle(s));
 const deckTitleFromRequest = (language, instructions, ws, lastUser) => {
@@ -92,7 +93,10 @@ router.post('/', requireWorkspace, async (req, res) => {
   const loadWebBlock = async () => {
     const { webSearch, formatSearch, searchConfigured } = require('../services/search');
     if (!searchConfigured()) return '';
-    const q = (instructions || ws.brief || ws.title || '').trim().slice(0, 300);
+    const base = (instructions || ws.brief || ws.title || '').trim();
+    const q = type === 'pptx'
+      ? `${base} latest current 2026 updates official UAEICP ICP services statistics`.trim().slice(0, 300)
+      : base.slice(0, 300);
     const found = await webSearch(q);
     return formatSearch(found, q, language);
   };
@@ -101,7 +105,8 @@ router.post('/', requireWorkspace, async (req, res) => {
   const webBlock = (req.body?.web === true && type !== 'pptx') ? await loadWebBlock() : '';
   const kbQuery = [instructions, ws.title, ws.brief, lastUser?.content, files.map(f => f.original_name).join(' ')].filter(Boolean).join('\n').slice(0, 1600);
   const kb = await require('../services/knowledge').retrieve(kbQuery, 8);
-  const context = baseContext(ws, files) + kb.block + webBlock
+  const freshnessBlock = `\n\nFRESHNESS REQUIREMENT:\nCurrent date: ${currentDateText()}.\nFor presentations and executive outputs, prioritize current status, initiatives, services, and facts through 2026. Use older dates only as historical milestones, never as the apparent latest state. If source material contains older facts such as 2021, update the narrative with current 2026 context when live web/company knowledge provides it.`;
+  const context = baseContext(ws, files) + freshnessBlock + kb.block + webBlock
     + (convo ? `\n\nCONVERSATION TRANSCRIPT (treat as source material — capture its key questions, answers and conclusions):\n${convo}` : '')
     + (instructions
       ? `\n\nEMPLOYEE ADDITIONAL INSTRUCTIONS (HIGHEST PRIORITY — follow exactly, respond in their language):\n${instructions}`
@@ -150,7 +155,7 @@ router.post('/', requireWorkspace, async (req, res) => {
         const plan = await ai.chat({
           provider: contentProvider,
           system: contentPlanSystem(language, focused, hasFiles, 'deck'),
-          user: deckContext.slice(0, 90000) + '\n\nWrite the slide-by-slide content plan now.',
+          user: deckContext.slice(0, 90000) + '\n\nWrite the slide-by-slide content plan now. Make the deck current through 2026; do not let older milestones such as 2021 appear to be the latest state.',
         });
         // Stage 3 — production. Try Skywork first when selected; fall through on failure.
         // Skywork gets the employee's request as-is plus researched facts — full creative
@@ -161,10 +166,10 @@ router.post('/', requireWorkspace, async (req, res) => {
             const rtlRule = language === 'ar'
               ? 'ARABIC FINAL TEXT QA: no harakat/tashkeel; clean RTL Arabic; short readable phrases; keep UAEICP/ICP as standalone acronyms only.'
               : '';
-            const visualMandate = `Create a premium, image-rich 16:9 PowerPoint deck in ${skLang}. Use high-end generated visuals or designed illustrations on every substantive slide: hero devices, government service interfaces, abstract security/data networks, UAE identity motifs, layered icon cards, and cinematic backgrounds. Balance information and visuals: not sparse, not cramped. For Arabic, use simple clean Modern Standard Arabic, no harakat/tashkeel, no decorative Arabic marks, no broken mixed-direction phrases, and no overlapping text.`;
+            const visualMandate = `Create a premium, image-rich 16:9 PowerPoint deck in ${skLang}. Use current information through 2026, including latest services, initiatives, channels, and relevant facts. Older dates such as 2021 may appear only as historical milestones, not as the current state. Use high-end generated visuals or designed illustrations on every substantive slide: hero devices, government service interfaces, abstract security/data networks, UAE identity motifs, layered icon cards, and cinematic backgrounds. Balance information and visuals: not sparse, not cramped. For Arabic, use simple clean Modern Standard Arabic, no harakat/tashkeel, no decorative Arabic marks, no broken mixed-direction phrases, and no overlapping text.`;
             const skQuery = `${(instructions || ws.brief || ws.title || 'Briefing deck').trim().slice(0, 1200)} — ${visualMandate}${focused ? ' Cover only the points requested above.' : ''}`;
             const skReference = 'VISUAL QUALITY TARGET:\nMatch the polished image-rich style of a premium Skywork presentation: large generated hero visual, dark refined panels, gold/accent icon cards, clean readable typography, and purposeful slide composition.\n\nBACKGROUND RESEARCH (use freely for facts and data — structure and design are entirely up to you):\n' + plan.text.slice(0, 28000)
-              + '\n\nSOURCE MATERIAL:\n' + deckContext.slice(0, 28000);
+              + `\n\nCURRENTNESS RULE:\nCurrent date: ${currentDateText()}. The deck must read as current through 2026. Do not present 2021-era facts as the latest state.\n\nSOURCE MATERIAL:\n` + deckContext.slice(0, 28000);
             let lastProgressWrite = 0;
             const skyworkWaitMs = Math.max(5, parseInt(process.env.PPT_SKYWORK_WAIT_MIN || '18', 10)) * 60 * 1000;
             const { buf } = await withTimeout(generatePpt({
