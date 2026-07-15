@@ -232,7 +232,7 @@
               <p>${t('chatWelcomeBody')}</p>
             </div>` : `
             <div class="chat-col">
-              ${b.messages.map(m => `<div class="msg ${m.role}" dir="${textDir(m.content)}">${m.role === 'assistant' ? md(m.content) : esc(m.content)}</div>`).join('')}
+              ${b.messages.map(m => `<div class="msg ${m.role}" data-mid="${esc(m.id || '')}" dir="${textDir(m.content)}">${m.role === 'assistant' ? md(m.content) : esc(m.content)}</div>`).join('')}
               ${busy ? `<div class="msg assistant typing-msg"><span class="typing"><span></span><span></span><span></span></span></div>` : ''}
             </div>`}
           </div>
@@ -724,7 +724,8 @@
     const log = $('#chat-log');
     if (log) log.scrollTop = log.scrollHeight;
     const alog = $('#assist-log');
-    if (alog) alog.scrollTop = alog.scrollHeight;
+    if (alog && !S.keepAssistScroll) alog.scrollTop = alog.scrollHeight;
+    S.keepAssistScroll = false;
     bindDropzone();
     scheduleOutputPoll();
   }
@@ -1119,11 +1120,13 @@
     },
     async sendAssist(e) {
       e.preventDefault();
+      if (S.busy.assist) return;
       const ta = e.target.q; let q = ta.value.trim();
       const pend = S.assistPending || [];
       if (!q && !pend.length) return;
       if (S.recog) { try { S.recog.stop(); } catch {} }
       S.busy.assist = true;
+      let assistantMsg = null;
       try {
         if (!S.chatWs) {
           const title = (q || (pend[0] && pend[0].name) || 'Chat').slice(0, 60);
@@ -1140,13 +1143,60 @@
           S.assistPending = [];
         }
         S.assistDraft = '';
-        S.chatWs.messages.push({ id: 'tmp', role: 'user', content: q, created_at: new Date().toISOString() });
+        const userMsg = { id: 'tmp-user-' + Date.now(), role: 'user', content: q, created_at: new Date().toISOString() };
+        assistantMsg = { id: 'tmp-assistant-' + Date.now(), role: 'assistant', content: '', created_at: new Date().toISOString() };
+        S.chatWs.messages.push(userMsg, assistantMsg);
         render();
-        const r = await api(`/workspaces/${S.chatWs.workspace.id}/chat`, { method: 'POST', body: JSON.stringify({ question: q, provider: S.provider, web: S.web }) });
-        if (r.fallbackError) toast('Provider failed, demo fallback used', true);
+        const res = await fetch(`/api/workspaces/${S.chatWs.workspace.id}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + S.token },
+          body: JSON.stringify({ question: q, provider: S.provider, web: S.web, stream: true }),
+        });
+        if (!res.ok || !res.body) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || t('error'));
+        }
+        const updateBubble = () => {
+          const el = document.querySelector(`[data-mid="${assistantMsg.id}"]`);
+          if (!el) return;
+          el.dir = textDir(assistantMsg.content);
+          el.innerHTML = assistantMsg.content ? md(assistantMsg.content) : `<span class="typing"><span></span><span></span><span></span></span>`;
+        };
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '', fallbackError = '';
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            const evt = JSON.parse(line);
+            if (evt.type === 'delta') {
+              assistantMsg.content += evt.delta || '';
+              updateBubble();
+            } else if (evt.type === 'done') {
+              fallbackError = evt.fallbackError || '';
+              if (evt.answer) {
+                const oldId = assistantMsg.id;
+                const streamed = assistantMsg.content;
+                Object.assign(assistantMsg, evt.answer);
+                if (streamed) assistantMsg.content = streamed;
+                const el = document.querySelector(`[data-mid="${oldId}"]`);
+                if (el) el.dataset.mid = assistantMsg.id;
+              }
+              updateBubble();
+            } else if (evt.type === 'error') {
+              throw new Error(evt.error || t('error'));
+            }
+          }
+        }
+        if (fallbackError) toast('Provider failed, demo fallback used', true);
       } catch (err) { toast(err.message, true); }
       S.busy.assist = false;
-      if (S.chatWs) S.chatWs = await api('/workspaces/' + S.chatWs.workspace.id);
+      S.keepAssistScroll = true;
       render();
     },
     openGenFromChat() {

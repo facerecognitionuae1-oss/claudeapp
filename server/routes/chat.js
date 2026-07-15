@@ -24,8 +24,8 @@ router.post('/', requireWorkspace, async (req, res) => {
   const language = req.body?.language || detectLang(question) || ws.language;
 
   const files = await store.listFiles(ws.id);
-  const history = (await store.listMessages(ws.id)).slice(-10);
-  const historyText = history.map(m => `${m.role.toUpperCase()}: ${String(m.content || '').slice(0, 1200)}`).join('\n\n');
+  const history = (await store.listMessages(ws.id)).slice(-6);
+  const historyText = history.map(m => `${m.role.toUpperCase()}: ${String(m.content || '').slice(0, 700)}`).join('\n\n');
 
   const userMsg = await store.addMessage({
     id: uuid(), workspace_id: ws.id, role: 'user', content: question.trim(),
@@ -42,13 +42,36 @@ router.post('/', requireWorkspace, async (req, res) => {
     }
   }
   const system = chatSystem(mode, language, files.length > 0);
-  const user = `${baseContext(ws, files, 8000, 24000)}${webBlock}
+  const user = `${baseContext(ws, files, 2500, 9000)}${webBlock}
 
 RECENT CONVERSATION:
 ${historyText || '(none)'}
 
 EMPLOYEE QUESTION (answer in this question's language):
 ${question.trim()}`;
+
+  if (req.body?.stream === true) {
+    res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('X-Accel-Buffering', 'no');
+    const write = obj => res.write(JSON.stringify(obj) + '\n');
+    try {
+      const out = await ai.stream({
+        provider, model, system, user,
+        onDelta: delta => write({ type: 'delta', delta }),
+      });
+      const answer = await store.addMessage({
+        id: uuid(), workspace_id: ws.id, role: 'assistant', content: out.text,
+        provider: out.provider, model: out.model, mode, created_at: new Date().toISOString(),
+      });
+      await store.updateWorkspace(ws.id, {});
+      logAction(req.user, 'question', ws.id, (webBlock ? '[web] ' : '') + question.trim());
+      write({ type: 'done', answer, fallbackError: out.fallbackError || '' });
+    } catch (err) {
+      write({ type: 'error', error: err.message || 'Chat failed' });
+    }
+    return res.end();
+  }
 
   const out = await ai.chat({ provider, model, system, user });
   const answer = await store.addMessage({

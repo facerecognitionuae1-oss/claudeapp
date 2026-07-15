@@ -16,6 +16,45 @@ async function callOpenAI(system, user, model) {
   return data.choices[0].message.content;
 }
 
+async function callOpenAIStream(system, user, model, onDelta) {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.providers.openai.key}` },
+    body: JSON.stringify({
+      model: model || config.providers.openai.model,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+      stream: true,
+    }),
+  });
+  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  let text = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const parts = buf.split('\n\n');
+    buf = parts.pop() || '';
+    for (const part of parts) {
+      for (const raw of part.split('\n')) {
+        const line = raw.trim();
+        if (!line.startsWith('data:')) continue;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        const data = JSON.parse(payload);
+        const delta = data.choices?.[0]?.delta?.content || '';
+        if (delta) {
+          text += delta;
+          onDelta(delta);
+        }
+      }
+    }
+  }
+  return text;
+}
+
 async function callAnthropic(system, user, model, images) {
   const content = [];
   for (const img of images || []) {
@@ -123,6 +162,23 @@ async function chat({ provider, model, system, user, images }) {
   return { text: demoResponse(system, user), provider: 'demo', model: 'demo' };
 }
 
+async function stream({ provider, model, system, user, images, onDelta }) {
+  const p = provider || 'demo';
+  try {
+    if (p === 'openai' && providerAvailable('openai')) {
+      return { text: await callOpenAIStream(system, user, model, onDelta), provider: 'openai', model: model || config.providers.openai.model };
+    }
+    const out = await chat({ provider, model, system, user, images });
+    onDelta(out.text);
+    return out;
+  } catch (err) {
+    console.warn(`[ai] ${p} stream failed: ${err.message} â€” falling back to demo`);
+    const text = demoResponse(system, user);
+    onDelta(text);
+    return { text, provider: 'demo', model: 'demo', fallbackError: err.message };
+  }
+}
+
 // Robust JSON extraction from model output.
 function parseJson(text) {
   try { return JSON.parse(text); } catch {}
@@ -133,4 +189,4 @@ function parseJson(text) {
   return null;
 }
 
-module.exports = { chat, listProviders, parseJson };
+module.exports = { chat, stream, listProviders, parseJson };
