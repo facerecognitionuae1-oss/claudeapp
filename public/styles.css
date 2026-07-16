@@ -299,6 +299,7 @@ label.f { display: block; font-size: 13px; font-weight: 700; color: var(--black)
 .out-row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--line); font-size: 14px; flex-wrap: wrap; }
 .out-row:last-child { border-bottom: none; }
 .out-row .grow { min-width: 150px; }
+.out-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .output-view { padding: 22px; white-space: pre-wrap; font-size: 14px; line-height: 1.7; max-height: 65vh; overflow: auto; overflow-wrap: anywhere; }
 .output-view :is(h1,h2,h3) { color: var(--black); margin: 14px 0 6px; }
 .output-view table { border-collapse: collapse; margin: 10px 0; display: block; overflow-x: auto; max-width: 100%; }

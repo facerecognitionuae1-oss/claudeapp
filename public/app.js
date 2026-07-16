@@ -44,12 +44,13 @@
   };
   const outActions = (o, dl, del) => {
     const oi = outInfo(o);
-    const delBtn = del ? `<button class="btn btn-danger btn-sm" title="${t('delete')}" onclick="A.${del}('${o.id}')">✕</button>` : '';
-    if (oi.ready) return ((o.format !== 'pptx' && o.format !== 'png') ? `<button class="btn btn-ghost btn-sm" onclick="A.viewOutput('${o.id}')">${t('view')}</button>` : '') +
-      `<button class="btn btn-primary btn-sm" onclick="A.${dl}('${o.id}')">${t('download')}</button>${delBtn}`;
-    return oi.processing ? `<span class="badge mode" style="display:inline-flex;align-items:center;gap:7px"><span class="spinner dark" style="width:12px;height:12px"></span> ${t('generating')}</span>${delBtn}`
-      : oi.error ? `<span class="badge warn">${t('error')}</span>${delBtn}`
-      : `<button class="btn btn-ghost btn-sm" onclick="A.${dl}('${o.id}')">↻ ${t('retryCheck')}</button>${delBtn}`;
+    const delBtn = del ? `<button class="btn btn-danger btn-sm" title="${t('delete')}" onclick="A.${del}('${o.id}')">${t('delete')}</button>` : '';
+    const wrap = html => `<div class="out-actions">${html}${delBtn}</div>`;
+    if (oi.ready) return wrap(((o.format !== 'pptx' && o.format !== 'png') ? `<button class="btn btn-ghost btn-sm" onclick="A.viewOutput('${o.id}')">${t('view')}</button>` : '') +
+      `<button class="btn btn-primary btn-sm" onclick="A.${dl}('${o.id}')">${t('download')}</button>`);
+    return oi.processing ? wrap(`<span class="badge mode" style="display:inline-flex;align-items:center;gap:7px"><span class="spinner dark" style="width:12px;height:12px"></span> ${t('generating')}</span>`)
+      : oi.error ? wrap(`<span class="badge warn">${t('error')}</span>`)
+      : wrap(`<button class="btn btn-ghost btn-sm" onclick="A.${dl}('${o.id}')">↻ ${t('retryCheck')}</button>`);
   };
 
   // Minimal markdown renderer (headings, bold, italics, code, lists, tables, paragraphs)
