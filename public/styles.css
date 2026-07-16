@@ -402,6 +402,9 @@ details.a-more .a-section { border-top: 1px dashed var(--line); }
 .chat-col { display: flex; flex-direction: column; gap: 16px; width: 100%; margin: 0; }
 .assist-open .msg.assistant { background: transparent; border: none; padding: 0 2px; max-width: 100%; }
 .assist-open .msg.user { max-width: 75%; }
+.msg ol, .msg ul, .output-view ol, .output-view ul { margin: .45rem 0 .8rem; padding-inline-start: 1.45rem; padding-inline-end: 0; }
+.msg[dir="rtl"] ol, .msg[dir="rtl"] ul, .output-view[dir="rtl"] ol, .output-view[dir="rtl"] ul { padding-inline-start: 0; padding-inline-end: 1.55rem; }
+.msg[dir="rtl"] li, .output-view[dir="rtl"] li { text-align: right; }
 .assist-open .assist-outs { border: 1px solid var(--line); border-radius: 12px; margin: 0 0 10px; width: 100%; }
 .greet { margin: auto; text-align: center; padding: 20px; }
 .greet-ico { font-size: 44px; }

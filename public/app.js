@@ -56,7 +56,7 @@
   // Minimal markdown renderer (headings, bold, italics, code, lists, tables, paragraphs)
   function md(src) {
     const lines = String(src || '').split('\n');
-    let html = '', inUl = false, inOl = false, inTable = false;
+    let html = '', inUl = false, inOl = false, inTable = false, nextOl = 1;
     const closeLists = () => { if (inUl) { html += '</ul>'; inUl = false; } if (inOl) { html += '</ol>'; inOl = false; } if (inTable) { html += '</table>'; inTable = false; } };
     const inline = s => esc(s)
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
@@ -64,20 +64,28 @@
       .replace(/`([^`]+)`/g, '<code>$1</code>');
     for (const raw of lines) {
       const line = raw;
+      if (line.trim() === '') continue;
       if (/^\s*\|.+\|\s*$/.test(line)) {
         if (/^\s*\|[\s\-:|]+\|\s*$/.test(line)) continue;
-        if (!inTable) { closeLists(); html += '<table>'; inTable = true; }
+        if (!inTable) { closeLists(); nextOl = 1; html += '<table>'; inTable = true; }
         const cells = line.trim().replace(/^\||\|$/g, '').split('|');
         html += '<tr>' + cells.map(c => `<td>${inline(c.trim())}</td>`).join('') + '</tr>';
         continue;
       }
       if (inTable) { html += '</table>'; inTable = false; }
       const h = line.match(/^(#{1,4})\s+(.*)/);
-      if (h) { closeLists(); html += `<h${h[1].length + 1}>${inline(h[2])}</h${h[1].length + 1}>`; continue; }
+      if (h) { closeLists(); nextOl = 1; html += `<h${h[1].length + 1}>${inline(h[2])}</h${h[1].length + 1}>`; continue; }
       if (/^\s*[-*]\s+/.test(line)) { if (!inUl) { closeLists(); html += '<ul>'; inUl = true; } html += `<li>${inline(line.replace(/^\s*[-*]\s+/, ''))}</li>`; continue; }
-      if (/^\s*\d+\.\s+/.test(line)) { if (!inOl) { closeLists(); html += '<ol>'; inOl = true; } html += `<li>${inline(line.replace(/^\s*\d+\.\s+/, ''))}</li>`; continue; }
-      closeLists();
-      if (line.trim() === '') continue;
+      const ordered = line.match(/^\s*(\d+)\.\s+(.*)/);
+      if (ordered) {
+        const sourceNo = parseInt(ordered[1], 10);
+        const itemNo = sourceNo > 1 ? sourceNo : nextOl;
+        if (!inOl) { closeLists(); html += `<ol${itemNo > 1 ? ` start="${itemNo}"` : ''}>`; inOl = true; }
+        html += `<li>${inline(ordered[2])}</li>`;
+        nextOl = itemNo + 1;
+        continue;
+      }
+      closeLists(); nextOl = 1;
       html += `<p>${inline(line)}</p>`;
     }
     closeLists();
