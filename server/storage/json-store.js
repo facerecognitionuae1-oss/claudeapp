@@ -90,6 +90,7 @@ class JsonStore {
     const { file_data, ...rest } = patch; // binary never persisted in db.json
     Object.assign(o, rest); this._save(); return o;
   }
+  async deleteOutput(id) { this.db.outputs = this.db.outputs.filter(o => o.id !== id); this._save(); }
 
   // Notes
   async addNote(n) { this.db.notes.push(n); this._save(); return n; }

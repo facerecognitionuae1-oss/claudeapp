@@ -42,13 +42,14 @@
     let st = ''; try { st = JSON.parse(o.content || '{}').status || ''; } catch {}
     return { ready: false, processing: st === 'processing', error: st === 'error' || st === 'no_file' };
   };
-  const outActions = (o, dl) => {
+  const outActions = (o, dl, del) => {
     const oi = outInfo(o);
+    const delBtn = del ? `<button class="btn btn-danger btn-sm" title="${t('delete')}" onclick="A.${del}('${o.id}')">✕</button>` : '';
     if (oi.ready) return ((o.format !== 'pptx' && o.format !== 'png') ? `<button class="btn btn-ghost btn-sm" onclick="A.viewOutput('${o.id}')">${t('view')}</button>` : '') +
-      `<button class="btn btn-primary btn-sm" onclick="A.${dl}('${o.id}')">${t('download')}</button>`;
-    return oi.processing ? `<span class="badge mode" style="display:inline-flex;align-items:center;gap:7px"><span class="spinner dark" style="width:12px;height:12px"></span> ${t('generating')}</span>`
-      : oi.error ? `<span class="badge warn">${t('error')}</span>`
-      : `<button class="btn btn-ghost btn-sm" onclick="A.${dl}('${o.id}')">↻ ${t('retryCheck')}</button>`;
+      `<button class="btn btn-primary btn-sm" onclick="A.${dl}('${o.id}')">${t('download')}</button>${delBtn}`;
+    return oi.processing ? `<span class="badge mode" style="display:inline-flex;align-items:center;gap:7px"><span class="spinner dark" style="width:12px;height:12px"></span> ${t('generating')}</span>${delBtn}`
+      : oi.error ? `<span class="badge warn">${t('error')}</span>${delBtn}`
+      : `<button class="btn btn-ghost btn-sm" onclick="A.${dl}('${o.id}')">↻ ${t('retryCheck')}</button>${delBtn}`;
   };
 
   // Minimal markdown renderer (headings, bold, italics, code, lists, tables, paragraphs)
@@ -225,11 +226,15 @@
             ${S.busy.gen ? `<span class="spinner dark"></span>` : ''}
             <button class="btn btn-dark btn-sm" onclick="A.openGenFromChat()">\u2726 ${t('makeFromChat')}</button>
           </div>` : ''}
-          ${outputs.length ? `<div class="assist-outs">${outputs.map(o => { const oi = outInfo(o); return oi.ready
-              ? `<button class="btn btn-ghost btn-sm" onclick="A.downloadChatOutput('${o.id}')">\u2B07 ${esc(o.title)}</button>`
+          ${outputs.length ? `<div class="assist-outs">${outputs.map(o => {
+            const oi = outInfo(o);
+            const del = `<button class="btn btn-danger btn-sm" title="${t('delete')}" onclick="A.deleteChatOutput('${o.id}')">✕</button>`;
+            return oi.ready
+              ? `<button class="btn btn-ghost btn-sm" onclick="A.downloadChatOutput('${o.id}')">⬇ ${esc(o.title)}</button>${del}`
               : oi.processing
-                ? `<span class="btn btn-ghost btn-sm" style="cursor:default;opacity:.75"><span class="spinner dark" style="width:12px;height:12px"></span> ${t('generating')} ${esc(o.title)}</span>`
-                : `<button class="btn btn-ghost btn-sm" onclick="A.downloadChatOutput('${o.id}')">\u21BB ${esc(o.title)}</button>`; }).join('')}</div>` : ''}
+                ? `<span class="btn btn-ghost btn-sm" style="cursor:default;opacity:.75"><span class="spinner dark" style="width:12px;height:12px"></span> ${t('generating')} ${esc(o.title)}</span>${del}`
+                : `<span class="badge warn">${t('error')}</span>${del}`;
+          }).join('')}</div>` : ''}
           <div class="chat-scroll" id="assist-log">
             ${empty ? `
             <div class="greet">
@@ -289,7 +294,7 @@
                 <div class="name" style="font-weight:600">${esc(o.title)}</div>
                 <div class="sub" style="font-size:12px;color:var(--muted)">${esc(o.type)} · ${new Date(o.created_at).toLocaleString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</div>
               </div>
-              ${outActions(o, 'downloadStudioHomeOutput')}
+              ${outActions(o, 'downloadStudioHomeOutput', 'deleteStudioHomeOutput')}
             </div>`).join('')}
         </div>
       </div>`;
@@ -615,7 +620,7 @@
                   <div class="name" style="font-weight:600">${esc(o.title)}</div>
                   <div class="sub" style="font-size:12px;color:var(--muted)">${esc(o.type)} · ${esc(o.provider)} · ${new Date(o.created_at).toLocaleString(S.lang === 'ar' ? 'ar-AE' : 'en-GB')}</div>
                 </div>
-                ${outActions(o, 'downloadOutput')}
+                ${outActions(o, 'downloadOutput', 'deleteOutput')}
               </div>`).join('')}
           </div>
         </div>
@@ -1011,6 +1016,7 @@
           <div class="actions">
             <button class="btn btn-ghost" onclick="A.closeModal()">${t('cancel')}</button>
             <button class="btn btn-ghost" onclick="A.copyOutput('${o.id}')">⧉</button>
+            <button class="btn btn-danger" onclick="A.deleteOutput('${o.id}')">${t('delete')}</button>
             <button class="btn btn-primary" onclick="A.downloadOutput('${o.id}')">${t('download')}</button>
           </div>
         </div>
@@ -1023,6 +1029,18 @@
       catch { toast(t('error'), true); }
     },
     downloadOutput(id) { A._download(`/api/workspaces/${S.ws.workspace.id}/studio/${id}/download`); },
+    async _deleteOutput(ws, id, after) {
+      if (!ws || !ws.workspace || !confirm(t('confirmDelete'))) return;
+      try {
+        await api(`/workspaces/${ws.workspace.id}/studio/${id}`, { method: 'DELETE' });
+        toast('✓');
+        if (after) await after();
+      } catch (err) { toast(err.message, true); }
+    },
+    async deleteOutput(id) {
+      S.modal = ''; render();
+      await A._deleteOutput(S.ws, id, () => A.refreshWs());
+    },
     exportReport() {
       S.modal = `
       <div class="overlay" onclick="if(event.target===this)A.closeModal()">
@@ -1109,6 +1127,12 @@
       S.busy.studioHome = false; render();
     },
     downloadStudioHomeOutput(id) { A._download(`/api/workspaces/${S.studioWs.workspace.id}/studio/${id}/download`); },
+    async deleteStudioHomeOutput(id) {
+      await A._deleteOutput(S.studioWs, id, async () => {
+        S.studioWs = await api('/workspaces/' + S.studioWs.workspace.id);
+        render();
+      });
+    },
 
     // assistant (general chat)
     async loadAssistant() {
@@ -1317,6 +1341,12 @@
       S.busy.gen = false; render();
     },
     downloadChatOutput(id) { A._download(`/api/workspaces/${S.chatWs.workspace.id}/studio/${id}/download`); },
+    async deleteChatOutput(id) {
+      await A._deleteOutput(S.chatWs, id, async () => {
+        S.chatWs = await api('/workspaces/' + S.chatWs.workspace.id);
+        render();
+      });
+    },
 
     // admin
     async loadAdmin() {

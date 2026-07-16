@@ -111,6 +111,7 @@ class PgStore {
     await this.q(`UPDATE outputs SET ${sets} WHERE id=$1`, [id, ...cols.map(c => patch[c])]);
     return this.getOutput(id);
   }
+  async deleteOutput(id) { await this.q('DELETE FROM outputs WHERE id=$1', [id]); }
 
   // Notes
   async addNote(n) {

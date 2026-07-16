@@ -369,6 +369,21 @@ ${plan.text.slice(0, 3500)}`;
   res.status(201).json({ output, fallbackError: out.fallbackError });
 });
 
+router.delete('/:outputId', requireWorkspace, async (req, res) => {
+  const o = await store.getOutput(req.params.outputId);
+  if (!o || o.workspace_id !== req.workspace.id) return res.status(404).json({ error: 'Output not found' });
+  if (o.file_name) {
+    try {
+      const target = path.resolve(config.generatedDir, o.file_name);
+      const root = path.resolve(config.generatedDir);
+      if (target.startsWith(root + path.sep)) require('fs').unlinkSync(target);
+    } catch {}
+  }
+  await store.deleteOutput(o.id);
+  logAction(req.user, 'output_delete', req.workspace.id, `${o.type} · ${o.title || o.id}`);
+  res.json({ ok: true });
+});
+
 // Download a generated output
 router.get('/:outputId/download', requireWorkspace, async (req, res) => {
   const o = await store.getOutput(req.params.outputId);
