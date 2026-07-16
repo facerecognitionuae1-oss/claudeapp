@@ -64,6 +64,34 @@ async function callAnthropic(system, user, model, images) {
   return callAnthropicRaw(system, content, model);
 }
 
+async function readSse(res, onEvent) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  let curEvent = 'message';
+  let curData = '';
+  const dispatch = () => {
+    if (!curData) { curEvent = 'message'; return; }
+    onEvent(curEvent, curData);
+    curEvent = 'message';
+    curData = '';
+  };
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() || '';
+    for (const raw of lines) {
+      const line = raw.replace(/\r$/, '');
+      if (line === '') { dispatch(); continue; }
+      if (line.startsWith('event:')) curEvent = line.slice(6).trim();
+      else if (line.startsWith('data:')) curData += line.slice(5).trim();
+    }
+  }
+  dispatch();
+}
+
 async function callAnthropicRaw(system, content, model) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -84,6 +112,42 @@ async function callAnthropicRaw(system, content, model) {
   return data.content.map(b => b.text || '').join('');
 }
 
+async function callAnthropicStream(system, user, model, images, onDelta) {
+  const content = [];
+  for (const img of images || []) {
+    content.push({ type: 'image', source: { type: 'base64', media_type: img.media_type || 'image/jpeg', data: img.data } });
+  }
+  content.push({ type: 'text', text: user });
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': config.providers.anthropic.key,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: model || config.providers.anthropic.model,
+      max_tokens: 16000,
+      system,
+      messages: [{ role: 'user', content }],
+      stream: true,
+    }),
+  });
+  if (!res.ok) throw new Error(`Anthropic ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  let text = '';
+  await readSse(res, (event, payload) => {
+    if (!payload || payload === '[DONE]') return;
+    const data = JSON.parse(payload);
+    if (event === 'content_block_delta' && data.delta?.type === 'text_delta') {
+      const delta = data.delta.text || '';
+      if (delta) { text += delta; onDelta(delta); }
+    } else if (event === 'error') {
+      throw new Error(data.error?.message || 'Anthropic stream error');
+    }
+  });
+  return text;
+}
+
 async function callOllama(system, user, model) {
   const res = await fetch(`${config.providers.ollama.url}/api/chat`, {
     method: 'POST',
@@ -99,10 +163,41 @@ async function callOllama(system, user, model) {
   return data.message.content;
 }
 
+async function callOllamaStream(system, user, model, onDelta) {
+  const res = await fetch(`${config.providers.ollama.url}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: model || config.providers.ollama.model,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+      stream: true,
+    }),
+  });
+  if (!res.ok) throw new Error(`Ollama ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  let text = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() || '';
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const data = JSON.parse(line);
+      const delta = data.message?.content || '';
+      if (delta) { text += delta; onDelta(delta); }
+    }
+  }
+  return text;
+}
+
 function providerAvailable(name) {
   if (name === 'openai') return !!config.providers.openai.key;
   if (name === 'anthropic') return !!config.providers.anthropic.key;
-  if (name === 'ollama') return true; // availability checked at call time
+  if (name === 'ollama') return !!config.providers.ollama.enabled;
   return false;
 }
 
@@ -110,7 +205,7 @@ function listProviders() {
   return [
     { id: 'openai', label: 'OpenAI', model: config.providers.openai.model, configured: !!config.providers.openai.key },
     { id: 'anthropic', label: 'Anthropic / Claude', model: config.providers.anthropic.model, configured: !!config.providers.anthropic.key },
-    { id: 'ollama', label: `Ollama (${config.providers.ollama.model})`, model: config.providers.ollama.model, configured: true },
+    { id: 'ollama', label: `Ollama (${config.providers.ollama.model})`, model: config.providers.ollama.model, configured: providerAvailable('ollama') },
     { id: 'demo', label: 'Demo (offline)', model: 'demo', configured: true },
   ];
 }
@@ -154,7 +249,7 @@ async function chat({ provider, model, system, user, images }) {
   try {
     if (p === 'openai' && providerAvailable('openai')) return { text: await callOpenAI(system, user, model), provider: 'openai', model: model || config.providers.openai.model };
     if (p === 'anthropic' && providerAvailable('anthropic')) return { text: await callAnthropic(system, user, model, images), provider: 'anthropic', model: model || config.providers.anthropic.model };
-    if (p === 'ollama') return { text: await callOllama(system, user, model), provider: 'ollama', model: model || config.providers.ollama.model };
+    if (p === 'ollama' && providerAvailable('ollama')) return { text: await callOllama(system, user, model), provider: 'ollama', model: model || config.providers.ollama.model };
   } catch (err) {
     console.warn(`[ai] ${p} failed: ${err.message} — falling back to demo`);
     return { text: demoResponse(system, user), provider: 'demo', model: 'demo', fallbackError: err.message };
@@ -167,6 +262,12 @@ async function stream({ provider, model, system, user, images, onDelta }) {
   try {
     if (p === 'openai' && providerAvailable('openai')) {
       return { text: await callOpenAIStream(system, user, model, onDelta), provider: 'openai', model: model || config.providers.openai.model };
+    }
+    if (p === 'anthropic' && providerAvailable('anthropic')) {
+      return { text: await callAnthropicStream(system, user, model, images, onDelta), provider: 'anthropic', model: model || config.providers.anthropic.model };
+    }
+    if (p === 'ollama' && providerAvailable('ollama')) {
+      return { text: await callOllamaStream(system, user, model, onDelta), provider: 'ollama', model: model || config.providers.ollama.model };
     }
     const out = await chat({ provider, model, system, user, images });
     onDelta(out.text);
