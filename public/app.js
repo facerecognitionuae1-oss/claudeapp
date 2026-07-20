@@ -716,6 +716,7 @@
         <button class="btn btn-ghost btn-sm" onclick="A.adminShowKnowledge()">📚 ${t('knowledgeBase')}</button>
         <button class="btn btn-ghost btn-sm" onclick="A.adminShowLogs()">📋 ${t('activityLog')}</button>
         <button class="btn btn-ghost btn-sm" onclick="A.downloadBackup()">💾 ${t('backup')}</button>
+        <button class="btn btn-ghost btn-sm" onclick="A.downloadFullBackup()">💾 ${t('fullBackup')}</button>
         <div class="grow"></div>
         <button class="btn btn-primary" onclick="A.openNewUser()">+ ${t('addUser')}</button>
       </div>
@@ -1372,6 +1373,7 @@
     },
     adminShowUsers() { A.loadAdmin(); },
     downloadBackup() { A._download('/api/users/backup'); },
+    downloadFullBackup() { A._download('/api/users/backup?binary=1'); },
     openNewUser() { S.modal = userModal(null); render(); },
     openEditUser(id) { S.modal = userModal(S.adminUsers.find(u => u.id === id)); render(); },
     async saveUser(e, id) {

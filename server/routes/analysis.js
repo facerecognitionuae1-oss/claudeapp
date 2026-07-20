@@ -40,7 +40,9 @@ router.post('/', requireWorkspace, async (req, res) => {
   const kb = await require('../services/knowledge').retrieve(kbQuery, 6);
   const system = analysisSystem(mode, language, files.length > 0);
   const user = baseContext(ws, files) + kb.block + webBlock + '\n\nRun the full structured review now.';
-  const out = await ai.chat({ provider, model, system, user });
+  let out;
+  try { out = await ai.chat({ provider, model, system, user }); }
+  catch (err) { return res.status(502).json({ error: err.message || 'AI provider failed' }); }
   const result = ai.parseJson(out.text);
   if (!result) return res.status(502).json({ error: 'Model returned unparseable output', raw: out.text.slice(0, 2000) });
 

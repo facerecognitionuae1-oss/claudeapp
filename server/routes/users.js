@@ -11,11 +11,12 @@ const strip = u => { const { password_hash, ...rest } = u; return rest; };
 
 router.get('/', async (req, res) => res.json({ users: (await store.listUsers()).map(strip) }));
 
-// Full data backup (admin) — JSON export of everything except binary file contents
+// Data backup (admin). Default is light; ?binary=1 includes DB file/output binaries as base64.
 router.get('/backup', async (req, res) => {
-  const dump = await store.dump();
+  const includeBinary = req.query.binary === '1' || req.query.binary === 'true';
+  const dump = await store.dump(includeBinary);
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="uaeicp-backup-${new Date().toISOString().slice(0, 10)}.json"`);
+  res.setHeader('Content-Disposition', `attachment; filename="uaeicp-backup${includeBinary ? '-full' : ''}-${new Date().toISOString().slice(0, 10)}.json"`);
   res.send(JSON.stringify(dump, null, 2));
 });
 

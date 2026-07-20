@@ -251,9 +251,12 @@ async function chat({ provider, model, system, user, images }) {
     if (p === 'anthropic' && providerAvailable('anthropic')) return { text: await callAnthropic(system, user, model, images), provider: 'anthropic', model: model || config.providers.anthropic.model };
     if (p === 'ollama' && providerAvailable('ollama')) return { text: await callOllama(system, user, model), provider: 'ollama', model: model || config.providers.ollama.model };
   } catch (err) {
-    console.warn(`[ai] ${p} failed: ${err.message} — falling back to demo`);
+    if (!config.allowDemoFallback) throw err;
+    console.warn(`[ai] ${p} failed: ${err.message} - falling back to demo because ALLOW_DEMO_FALLBACK=true`);
     return { text: demoResponse(system, user), provider: 'demo', model: 'demo', fallbackError: err.message };
   }
+  if (p !== 'demo' && !config.allowDemoFallback)
+    throw new Error(`${p} is not configured. Select a configured provider or set the required API key.`);
   return { text: demoResponse(system, user), provider: 'demo', model: 'demo' };
 }
 
@@ -273,7 +276,8 @@ async function stream({ provider, model, system, user, images, onDelta }) {
     onDelta(out.text);
     return out;
   } catch (err) {
-    console.warn(`[ai] ${p} stream failed: ${err.message} â€” falling back to demo`);
+    if (!config.allowDemoFallback) throw err;
+    console.warn(`[ai] ${p} stream failed: ${err.message} - falling back to demo because ALLOW_DEMO_FALLBACK=true`);
     const text = demoResponse(system, user);
     onDelta(text);
     return { text, provider: 'demo', model: 'demo', fallbackError: err.message };

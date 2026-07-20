@@ -102,7 +102,15 @@ class JsonStore {
 
   // Activity logs
   async addLog(l) { this.db.logs.push(l); if (this.db.logs.length > 5000) this.db.logs = this.db.logs.slice(-4000); this._save(); return l; }
-  async dump() { return { exported_at: new Date().toISOString(), storage: 'json', ...this.db }; }
+  async dump(includeBinary = false) {
+    return {
+      exported_at: new Date().toISOString(),
+      storage: 'json',
+      includes_binary: false,
+      note: includeBinary ? 'Local JSON mode does not store binary file/output content in db.json; preserve UPLOAD_DIR and GENERATED_DIR separately.' : '',
+      ...this.db,
+    };
+  }
   async listLogs(limit = 300) {
     return [...this.db.logs].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '')).slice(0, limit);
   }

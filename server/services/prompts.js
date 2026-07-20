@@ -80,7 +80,10 @@ function baseContext(workspace, files, perFileChars = 60000, totalFileChars = In
     .map(f => {
       const remaining = Math.max(0, totalFileChars - used);
       if (!remaining) return '';
-      const text = (f.extracted_text || '').slice(0, Math.min(perFileChars, remaining));
+      const raw = f.extracted_text || '';
+      const max = Math.min(perFileChars, remaining);
+      const clipped = raw.length > max;
+      const text = raw.slice(0, max) + (clipped ? '\n\n[TRUNCATED: this file is longer than the prompt budget. Ask focused questions or add it to the knowledge base for retrieval-based access.]' : '');
       used += text.length;
       return `=== DOCUMENT: ${f.original_name} ===\n${text}`;
     })

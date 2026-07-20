@@ -27,7 +27,20 @@ router.post('/login', async (req, res) => {
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
   const token = jwt.sign({ sub: user.id, role: user.role }, config.jwtSecret, { expiresIn: '12h' });
   logAction(user, 'login', null, '');
+  if (config.authCookie) {
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: config.nodeEnv === 'production',
+      maxAge: 12 * 60 * 60 * 1000,
+    });
+  }
   res.json({ token, user: publicUser(user) });
+});
+
+router.post('/logout', requireAuth, (req, res) => {
+  if (config.authCookie) res.clearCookie('auth_token');
+  res.json({ ok: true });
 });
 
 router.get('/me', requireAuth, (req, res) => res.json({ user: publicUser(req.user) }));

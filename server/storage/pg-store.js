@@ -5,6 +5,9 @@ const { Pool } = require('pg');
 
 class PgStore {
   constructor(cfg) {
+    this.cfg = cfg;
+    this.vectorReady = false;
+    this.vectorDimensions = cfg.knowledge?.embeddingDimensions || 1536;
     this.pool = new Pool({
       connectionString: cfg.databaseUrl,
       ssl: cfg.pgSsl ? { rejectUnauthorized: false } : false,
@@ -13,8 +16,26 @@ class PgStore {
   async init() {
     const schema = fs.readFileSync(path.join(__dirname, '..', 'db', 'schema.sql'), 'utf8');
     await this.pool.query(schema);
+    if (this.cfg.pgvector) await this.initVector();
   }
   async q(text, params) { return (await this.pool.query(text, params)).rows; }
+
+  async initVector() {
+    try {
+      await this.pool.query('CREATE EXTENSION IF NOT EXISTS vector');
+      await this.pool.query(`ALTER TABLE knowledge_chunks ADD COLUMN IF NOT EXISTS embedding_vec vector(${this.vectorDimensions})`);
+      try {
+        await this.pool.query('CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_embedding_vec ON knowledge_chunks USING hnsw (embedding_vec vector_cosine_ops)');
+      } catch (idxErr) {
+        console.warn('[storage] pgvector index unavailable; vector search will run without HNSW index:', idxErr.message);
+      }
+      this.vectorReady = true;
+      console.log(`[storage] pgvector enabled for knowledge chunks (${this.vectorDimensions} dimensions)`);
+    } catch (err) {
+      this.vectorReady = false;
+      console.warn('[storage] pgvector unavailable; using JSON embedding search:', err.message);
+    }
+  }
 
   // Users
   async createUser(u) {
@@ -155,11 +176,20 @@ class PgStore {
   async deleteKnowledgeDocument(id) { await this.q('DELETE FROM knowledge_documents WHERE id=$1', [id]); }
   async addKnowledgeChunks(chunks) {
     for (const c of chunks) {
-      await this.q(
-        `INSERT INTO knowledge_chunks (id, document_id, chunk_index, content, embedding_json, metadata, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [c.id, c.document_id, c.chunk_index, c.content, c.embedding_json ? JSON.stringify(c.embedding_json) : null,
-          JSON.stringify(c.metadata || {}), c.created_at]);
+      const emb = Array.isArray(c.embedding_json) ? c.embedding_json : null;
+      if (this.vectorReady && emb && emb.length === this.vectorDimensions) {
+        await this.q(
+          `INSERT INTO knowledge_chunks (id, document_id, chunk_index, content, embedding_json, embedding_vec, metadata, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6::vector,$7,$8)`,
+          [c.id, c.document_id, c.chunk_index, c.content, JSON.stringify(emb), `[${emb.join(',')}]`,
+            JSON.stringify(c.metadata || {}), c.created_at]);
+      } else {
+        await this.q(
+          `INSERT INTO knowledge_chunks (id, document_id, chunk_index, content, embedding_json, metadata, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [c.id, c.document_id, c.chunk_index, c.content, c.embedding_json ? JSON.stringify(c.embedding_json) : null,
+            JSON.stringify(c.metadata || {}), c.created_at]);
+      }
     }
   }
   async listKnowledgeChunks(activeOnly = true) {
@@ -170,19 +200,35 @@ class PgStore {
        ORDER BY d.created_at DESC, c.chunk_index ASC`);
   }
 
+  async searchKnowledgeChunks(queryEmbedding, limit = 40) {
+    if (!this.vectorReady || !Array.isArray(queryEmbedding) || queryEmbedding.length !== this.vectorDimensions) return [];
+    return this.q(
+      `SELECT c.*, d.title AS document_title, d.original_name, d.language, d.active,
+              (1 - (c.embedding_vec <=> $1::vector)) AS vector_score
+       FROM knowledge_chunks c JOIN knowledge_documents d ON d.id=c.document_id
+       WHERE d.active = TRUE AND c.embedding_vec IS NOT NULL
+       ORDER BY c.embedding_vec <=> $1::vector
+       LIMIT $2`,
+      [`[${queryEmbedding.join(',')}]`, limit]);
+  }
+
   // Full backup (binary file contents excluded to keep the export light)
-  async dump() {
-    const out = { exported_at: new Date().toISOString(), storage: 'postgres' };
+  async dump(includeBinary = false) {
+    const out = { exported_at: new Date().toISOString(), storage: 'postgres', includes_binary: !!includeBinary };
     out.users = await this.q('SELECT * FROM users');
     out.workspaces = await this.q('SELECT * FROM workspaces');
-    out.files = await this.q('SELECT id, workspace_id, original_name, stored_name, mime_type, size_bytes, uploaded_at FROM files');
+    out.files = includeBinary
+      ? await this.q("SELECT id, workspace_id, original_name, stored_name, mime_type, size_bytes, uploaded_at, encode(COALESCE(content, file_data), 'base64') AS content_base64 FROM files")
+      : await this.q('SELECT id, workspace_id, original_name, stored_name, mime_type, size_bytes, uploaded_at FROM files');
     out.analyses = await this.q('SELECT * FROM analyses');
     out.messages = await this.q('SELECT * FROM messages');
-    out.outputs = await this.q('SELECT id, workspace_id, type, format, title, file_name, content, provider, created_at FROM outputs');
+    out.outputs = includeBinary
+      ? await this.q("SELECT id, workspace_id, type, format, title, file_name, content, provider, created_at, encode(file_data, 'base64') AS file_data_base64 FROM outputs")
+      : await this.q('SELECT id, workspace_id, type, format, title, file_name, content, provider, created_at FROM outputs');
     out.notes = await this.q('SELECT * FROM notes');
     out.logs = await this.q('SELECT * FROM logs');
     out.knowledge_documents = await this.q('SELECT * FROM knowledge_documents');
-    out.knowledge_chunks = await this.q('SELECT id, document_id, chunk_index, content, metadata, created_at FROM knowledge_chunks');
+    out.knowledge_chunks = await this.q('SELECT id, document_id, chunk_index, content, embedding_json, metadata, created_at FROM knowledge_chunks');
     return out;
   }
 }

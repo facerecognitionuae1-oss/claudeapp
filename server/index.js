@@ -7,10 +7,14 @@ const config = require('./config');
 const store = require('./storage');
 const ai = require('./services/ai');
 const { requireAuth } = require('./middleware/auth');
+const { makeRateLimit } = require('./middleware/rate-limit');
 
 const app = express();
+if (config.trustProxy) app.set('trust proxy', 1);
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
+app.use('/api/auth/login', makeRateLimit({ windowMs: config.rateLimit.authWindowMs, max: config.rateLimit.authMax, keyPrefix: 'auth:' }));
+app.use('/api', makeRateLimit({ windowMs: config.rateLimit.apiWindowMs, max: config.rateLimit.apiMax, keyPrefix: 'api:' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.get('/api/health', (req, res) => res.json({ ok: true, storage: config.databaseUrl ? 'postgres' : 'json' }));
@@ -54,6 +58,10 @@ async function seedAdmin() {
 }
 
 (async () => {
+  if (config.jwtSecret === 'dev-secret-change-me')
+    console.warn('[security] JWT_SECRET is using the development default. Set a long random JWT_SECRET before production use.');
+  if (config.adminPassword === 'Admin@1234')
+    console.warn('[security] ADMIN_PASSWORD is using the development default. Change the admin password immediately.');
   await store.init();
   await seedAdmin();
   app.listen(config.port, () =>

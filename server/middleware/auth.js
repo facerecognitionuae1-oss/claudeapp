@@ -4,7 +4,7 @@ const store = require('../storage');
 
 async function requireAuth(req, res, next) {
   const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  const token = header.startsWith('Bearer ') ? header.slice(7) : (parseCookies(req.headers.cookie || '').auth_token || null);
   if (!token) return res.status(401).json({ error: 'Authentication required' });
   try {
     const payload = jwt.verify(token, config.jwtSecret);
@@ -30,6 +30,14 @@ async function requireWorkspace(req, res, next) {
     return res.status(403).json({ error: 'Not your workspace' });
   req.workspace = ws;
   next();
+}
+
+function parseCookies(header) {
+  return String(header || '').split(';').reduce((out, part) => {
+    const idx = part.indexOf('=');
+    if (idx > -1) out[decodeURIComponent(part.slice(0, idx).trim())] = decodeURIComponent(part.slice(idx + 1).trim());
+    return out;
+  }, {});
 }
 
 module.exports = { requireAuth, requireAdmin, requireWorkspace };

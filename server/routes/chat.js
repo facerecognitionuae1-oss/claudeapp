@@ -83,7 +83,9 @@ ${question.trim()}`;
     return res.end();
   }
 
-  const out = await ai.chat({ provider, model, system, user });
+  let out;
+  try { out = await ai.chat({ provider, model, system, user }); }
+  catch (err) { return res.status(502).json({ error: err.message || 'AI provider failed' }); }
   out.text = cleanChatAnswer(out.text);
   const answer = await store.addMessage({
     id: uuid(), workspace_id: ws.id, role: 'assistant', content: out.text,

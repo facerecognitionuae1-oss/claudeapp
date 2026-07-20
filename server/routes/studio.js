@@ -355,7 +355,12 @@ ${plan.text.slice(0, 3500)}`;
 
   const t = STUDIO_TYPES[type];
   if (!t) return res.status(400).json({ error: 'Unknown output type' });
-  const out = await ai.chat({ provider: useProvider || provider, model, system: studioSystem(type, mode, language, focused, hasFiles), user: context + '\n\nGenerate the document now.' });
+  let out;
+  try {
+    out = await ai.chat({ provider: useProvider || provider, model, system: studioSystem(type, mode, language, focused, hasFiles), user: context + '\n\nGenerate the document now.' });
+  } catch (err) {
+    return res.status(502).json({ error: err.message || 'AI provider failed' });
+  }
 
   let content = out.text;
   const localizedTitle = studioTitle(type, language);
